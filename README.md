@@ -31,35 +31,110 @@ replies, comments, or writes back.
   and replayed offline for prompt tuning and regression tests.
 - **Graceful degradation.** The digest always ships, even if a sensor is down.
 
+## How you use it
+
+- **Daily interface:** the morning email. That's it — you open your inbox,
+  the digest is there.
+- **Setup and debug interface:** the CLI (`python -m app.run`, `--replay`,
+  `--dry-run`, `--config`). Used during install and tuning, not part of the
+  daily loop.
+
+The agent is a **scheduled batch job**, not a service. You (or your machine's
+scheduler) invoke it once each morning; it runs in under 90 seconds and
+exits.
+
 ## Quickstart
 
-> Setup instructions will land alongside the Phase 0 scaffold. Placeholder:
+> Precise commands land with the Phase 0 scaffold. The shape below is the
+> intended flow.
+
+### 1. Install
 
 ```bash
-# install
 uv sync
-
-# configure
-cp config.example.yaml config.yaml
-cp .env.example .env
-# fill in Gmail/Calendar OAuth client and Plane API token
-
-# run
-python -m app.run                    # normal morning run
-python -m app.run --replay           # replay from fixtures
-python -m app.run --dry-run          # skip email delivery
 ```
+
+### 2. Provision credentials
+
+```bash
+cp .env.example .env
+# fill in:
+#   PLANE_API_TOKEN          - from Plane → Settings → API Tokens
+#   ANTHROPIC_API_KEY        - from https://console.anthropic.com
+#   GOOGLE_OAUTH_CLIENT_ID   - from Google Cloud Console → OAuth client
+#   GOOGLE_OAUTH_CLIENT_SECRET
+```
+
+Full credential inventory and rotation rules in [SECURITY.md](SECURITY.md) §2.
+
+### 3. Complete the Google OAuth flow (once)
+
+```bash
+python -m app.auth --setup
+```
+
+Opens a browser, you consent, the refresh token is stored in the OS keyring.
+Never touches disk.
+
+### 4. Configure
+
+```bash
+cp config.example.yaml config.yaml
+# edit identity.delivery_address, timezone, run_time,
+# plane.project_ids, gmail.trusted_domains, thresholds
+```
+
+Every key is documented in [specs.md](specs.md) §6.3.
+
+### 5. Smoke test
+
+```bash
+python -m app.run --dry-run    # runs the full pipeline, skips email delivery
+python -m app.run --replay     # runs against recorded fixtures, offline
+```
+
+### 6. Schedule the daily run
+
+Point your OS scheduler at `python -m app.run` at your configured `run_time`.
+
+**macOS** — a `launchd` `.plist` at `~/Library/LaunchAgents/`:
+
+```xml
+<key>ProgramArguments</key>
+<array>
+    <string>/path/to/uv</string>
+    <string>run</string>
+    <string>python</string>
+    <string>-m</string>
+    <string>app.run</string>
+</array>
+<key>StartCalendarInterval</key>
+<dict>
+    <key>Hour</key><integer>8</integer>
+    <key>Minute</key><integer>0</integer>
+</dict>
+```
+
+**Linux** — a crontab entry:
+
+```
+0 8 * * * cd /path/to/chief-of-staff-agent && /path/to/uv run python -m app.run
+```
+
+**Windows** — Task Scheduler, daily trigger at your `run_time`, action
+`python -m app.run`.
 
 ## Repository layout
 
-| File               | Purpose                                                  |
+| File / directory   | Purpose                                                  |
 |--------------------|----------------------------------------------------------|
-| [specs.md](specs.md)             | Technical specification — pipeline, schemas, config, LLM budget. Source of truth for behavior. |
-| [EVALUATION.md](EVALUATION.md)   | Success metrics, exit criteria, golden datasets.         |
-| [SECURITY.md](SECURITY.md)       | Threat model, scopes, credential handling.               |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Branching, PR checklist, testing conventions.          |
-
+| [specs.md](specs.md)               | Technical specification — pipeline, schemas, config, LLM budget. Source of truth for behavior. |
+| [EVALUATION.md](EVALUATION.md)     | Success metrics, exit criteria, golden datasets.         |
+| [SECURITY.md](SECURITY.md)         | Threat model, scopes, credential handling.               |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Branching, PR checklist, testing conventions.            |
+| [docs/roadmap.md](docs/roadmap.md) | Build phases 0–4 with deliverables and exit criteria.    |
 ## Status
 
-Pre-release. See `specs.md` for the build roadmap and `EVALUATION.md` for
-the exit criteria that gate each stage.
+Pre-release — Phase 0 scaffold in progress. See [docs/roadmap.md](docs/roadmap.md)
+for the build phases and [EVALUATION.md](EVALUATION.md) for the exit criteria
+that gate each one.

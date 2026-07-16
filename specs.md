@@ -2,7 +2,7 @@
 
 **Version:** 1.1
 **Date:** 15 July 2026
-**Owner:** Awais @ Arbisoft
+
 
 ---
 
@@ -29,6 +29,31 @@ HTML digest via email-to-self.
 - Single-user, single-config. No multi-tenancy.
 - Fixed graph topology — no ReAct loops, no dynamic tool selection.
 - Every claim in the digest carries cited evidence (issue ID, quoted ask, timestamp).
+
+### 2.1 Execution Model
+
+The agent is a **scheduled batch job**, not a long-running service. An
+OS-native scheduler (`cron`, `launchd`, systemd timer, or Windows Task
+Scheduler) invokes `python -m app.run` at the time set in `config.yaml →
+identity.run_time`. A single run completes in under 90 seconds (§11) and
+exits. There is no daemon, no background loop, and no inbound network
+listener.
+
+Setting up the schedule is the user's responsibility during first-time
+setup — the agent itself does not self-schedule.
+
+### 2.2 Delivery Model
+
+The user has **no frontend and no API**. In v1 the user both installs the
+agent and reads its output; there is no separate "end user" role.
+
+Two interfaces exist:
+
+- **Email digest** — the daily interface. A single HTML email delivered to
+  `config.identity.delivery_address` each morning.
+- **CLI** (`python -m app.run`, `--replay`, `--dry-run`, `--config`) — the
+  setup and debugging interface. Used during install, tuning, and
+  troubleshooting; not part of the daily loop.
 
 ---
 
@@ -212,8 +237,10 @@ so no reducer conflicts arise at fan-in.
 - **Behavior:**
   1. Render the digest as HTML using Jinja2 templates from `app/templates/`.
   2. Send via Gmail API (or SMTP) as an email to `config.identity.delivery_address`.
-  3. Record run metadata to the `runs` SQLite table: timestamp, per-node durations,
-     total token usage, errors encountered, and a snapshot of `digest_html`.
+  3. Insert a row into `runs.db.runs` with timestamps, per-node durations,
+     total token usage, errors, and `config_hash`. On successful delivery, insert
+     the rendered `digest_html` into `memory.db.digest_log` with `run_id` set to
+     the just-created runs row's id.
 - **Digest section order (fixed):**
   1. **Today's schedule** — meetings with prep flags (e.g., "the client emailed
      about milestone 2 and you haven't replied — it will come up at 10 AM"), focus
@@ -267,21 +294,104 @@ Three separate SQLite files, deliberately not merged:
 | `memory.db`        | Domain memory across runs       | `app/storage/memory.py`     |
 | `runs.db`          | Audit log of every run          | `app/storage/runs.py`       |
 
+**Conventions:**
+
+- Timestamps stored as ISO 8601 UTC in TEXT columns (`YYYY-MM-DD HH:MM:SS`).
+  Conversion to `identity.timezone` happens at render time.
+- Dates stored as ISO TEXT (`YYYY-MM-DD`).
+- JSON blobs stored in TEXT columns with `CHECK(json_valid(...))` (JSON1 ships
+  with SQLite ≥ 3.9).
+- The `digest_html` is stored **only** in `memory.db.digest_log`. `runs.db.runs`
+  links to it via `run_id` (soft cross-database reference) to avoid duplicating
+  the payload.
+
 **Domain memory tables (`memory.db`):**
 
-- `seen_emails` — email message IDs already flagged, to prevent re-surfacing.
-- `issue_stuck_since` — per-issue date when "stuck" status was first detected,
-  enabling "still stuck, day 6" framing.
-- `digest_log` — timestamp and digest snapshot for each delivered digest.
+```sql
+-- Prevents re-surfacing emails that were already flagged in a prior run.
+CREATE TABLE IF NOT EXISTS seen_emails (
+    message_id     TEXT PRIMARY KEY,               -- Gmail message ID
+    first_seen_at  TEXT NOT NULL,                  -- ISO 8601 UTC
+    classification TEXT NOT NULL                   -- last-known label
+        CHECK (classification IN ('needs_reply','waiting','fyi','ignore'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_seen_emails_first_seen_at
+    ON seen_emails(first_seen_at DESC);
+
+-- Per-issue date when "stuck" status was first detected.
+-- Enables "still stuck, day 6" framing across runs.
+CREATE TABLE IF NOT EXISTS issue_stuck_since (
+    issue_id        TEXT PRIMARY KEY,              -- Plane issue ID, e.g. "PROJ-142"
+    stuck_since     TEXT NOT NULL,                 -- ISO date
+    last_confirmed  TEXT NOT NULL                  -- ISO date; most recent run that saw it stuck
+);
+
+CREATE INDEX IF NOT EXISTS idx_issue_stuck_last_confirmed
+    ON issue_stuck_since(last_confirmed);
+
+-- Chronological archive of delivered digests. Single source of truth for digest HTML.
+CREATE TABLE IF NOT EXISTS digest_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    delivered_at  TEXT NOT NULL,                   -- ISO 8601 UTC
+    run_id        INTEGER NOT NULL,                -- soft ref to runs.db → runs.id
+    digest_html   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_digest_log_delivered_at
+    ON digest_log(delivered_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_digest_log_run_id
+    ON digest_log(run_id);
+```
 
 **Runs table (`runs.db`):**
 
-- `id`, `started_at`, `finished_at`, `node_durations` (JSON), `total_tokens`,
-  `errors` (JSON), `digest_snapshot` (HTML), `config_hash`.
+```sql
+-- Audit log of every run: timing, cost, errors. Digest HTML lives in memory.db.digest_log.
+CREATE TABLE IF NOT EXISTS runs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at      TEXT NOT NULL,                 -- ISO 8601 UTC
+    finished_at     TEXT,                          -- NULL if the run crashed
+    node_durations  TEXT NOT NULL DEFAULT '{}'     -- JSON: {node_name: seconds}
+        CHECK (json_valid(node_durations)),
+    total_tokens    INTEGER NOT NULL DEFAULT 0,
+    errors          TEXT NOT NULL DEFAULT '{}'     -- JSON: {sensor_name: message}
+        CHECK (json_valid(errors)),
+    config_hash     TEXT NOT NULL                  -- sha256 of active config.yaml
+);
+
+CREATE INDEX IF NOT EXISTS idx_runs_started_at
+    ON runs(started_at DESC);
+```
+
+**`checkpoints.db`:** Fully managed by LangGraph's `SqliteSaver`. Do not define
+or migrate tables in this file — treat it as an opaque LangGraph store.
+
+**Migration approach:** No migration framework in v1. Bootstrap runs
+`CREATE TABLE IF NOT EXISTS` for every table above on startup. Schema changes
+are additive until v2.
 
 ---
 
 ## 6. Configuration Surface (`config.yaml`)
+
+### 6.1 Location and lifecycle
+
+- **Where it lives:** `config.yaml` at the repository root. An alternate path
+  can be passed via `python -m app.run --config path/to/other.yaml` (§8).
+- **What ships in git:** `config.example.yaml` (a fully commented template
+  with placeholder values).
+- **What does NOT ship in git:** `config.yaml` — it holds real identity data
+  (`delivery_address`, `allowlist`, `project_ids`). Added to `.gitignore`.
+- **Validation:** the loader parses this file into a Pydantic model at
+  startup. Missing required keys, unknown keys, or type errors cause the
+  process to exit before any external call is made.
+- **Reproducibility:** a sha256 of the resolved config is written to
+  `runs.config_hash` (§5) so every run can be traced back to the exact config
+  that produced it.
+
+### 6.2 Full example
 
 ```yaml
 identity:
@@ -316,8 +426,61 @@ llm:
   batch_mode: true             # false = per-item calls
 ```
 
-**Credentials never appear in this file.** OAuth client secret and Plane API token
-live in `.env`; refresh tokens are stored via `keyring`.
+### 6.3 Key reference
+
+**`identity`** — who the user is and where the digest goes.
+
+| Key                 | Type   | Default   | Purpose                                                                                     |
+|---------------------|--------|-----------|---------------------------------------------------------------------------------------------|
+| `user_name`         | string | required  | Salutation in the digest ("Good morning, Awais").                                           |
+| `timezone`          | string | required  | IANA zone (e.g. `Asia/Riyadh`). Used to render stored UTC timestamps and interpret `run_time`. |
+| `delivery_address`  | string | required  | Email address the digest is sent to (§3.4.1).                                               |
+| `run_time`          | string | `"08:00"` | Local time the user's OS scheduler should invoke `python -m app.run`. The agent itself does not self-schedule (§2.1). |
+
+**`gmail`** — how emails are filtered before entering the pipeline (§3.1.1).
+
+| Key                   | Type          | Default | Purpose                                                                       |
+|-----------------------|---------------|---------|-------------------------------------------------------------------------------|
+| `allowlist`           | list[string]  | `[]`    | Tier-1 senders auto-trusted with no LLM check.                                |
+| `trusted_domains`     | list[string]  | `[]`    | Tier-2 domains auto-trusted (e.g. `arbisoft.com`).                            |
+| `fetch_window_hours`  | int           | `24`    | How far back to query Gmail on each run.                                      |
+
+**`plane`** — which projects to read and how to derive people (§3.1.3).
+
+| Key                     | Type          | Default              | Purpose                                                                     |
+|-------------------------|---------------|----------------------|-----------------------------------------------------------------------------|
+| `base_url`              | string        | `https://api.plane.so` | Plane Cloud or self-hosted API root.                                      |
+| `project_ids`           | list[string]  | required             | Projects the agent will fetch issues from.                                  |
+| `ignore_list`           | list[string]  | `[]`                 | Assignee names/IDs to exclude from team assessment.                         |
+| `rolling_window_days`   | int           | `7`                  | Window used to count completions per person.                                |
+
+**`thresholds`** — deterministic rules for team health (§3.2.3) and the
+schedule (§3.2.2).
+
+| Key                       | Type  | Default | Purpose                                                                                 |
+|---------------------------|-------|---------|-----------------------------------------------------------------------------------------|
+| `inactivity_days`         | int   | `4`     | Days without activity after which an in-progress issue triggers `attention` status.     |
+| `overdue_grace_days`      | int   | `0`     | Days past due before an issue is flagged overdue. `0` = flag immediately.               |
+| `load_multiplier`         | float | `1.5`   | `watch` status when a person's in-progress count > multiplier × team average.           |
+| `due_soon_horizon_days`   | int   | `7`     | Window used for the "2+ items due within Nd" watch rule.                                |
+
+**`llm`** — model selection and call shape (§7).
+
+| Key                     | Type  | Default             | Purpose                                                                              |
+|-------------------------|-------|---------------------|--------------------------------------------------------------------------------------|
+| `model`                 | string| `claude-sonnet-4-6` | Provider model string.                                                               |
+| `max_tokens_per_node`   | int   | `4096`              | Hard cap on tokens per LLM call. Guards cost and latency.                            |
+| `batch_mode`            | bool  | `true`              | `true` = one batched call per node; `false` = per-item calls (higher call count, same total tokens). |
+
+### 6.4 Credentials
+
+**Credentials never appear in this file.** The full credential inventory —
+what goes in `.env`, what goes in the OS keyring, and how each is provisioned
+during first-time setup — is defined in [SECURITY.md](SECURITY.md) §2.1. In
+summary: long-lived tokens (Plane API token, Anthropic API key, Google OAuth
+client ID + secret) live in `.env`; the Google OAuth **refresh** token is
+stored via `keyring` after a one-time browser flow (`python -m app.auth
+--setup`).
 
 ---
 
