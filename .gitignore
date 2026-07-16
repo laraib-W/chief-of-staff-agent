@@ -1,0 +1,37 @@
+# Secrets and runtime state
+.env
+.env.local
+*.db
+*.db-journal
+
+# Real user config (see config.example.yaml for the template)
+config.yaml
+
+# Private fixtures that cannot be safely committed
+tests/fixtures/private/
+tests/evaluation/golden_private/
+tests/evaluation/results/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtualenv
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Build artifacts
+build/
+dist/
