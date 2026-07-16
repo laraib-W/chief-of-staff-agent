@@ -1,0 +1,36 @@
+# Copy this file to `config.yaml` and fill in real values.
+# `config.yaml` is gitignored — it contains identity data (delivery
+# address, allowlists, project IDs) that should not land in a public repo.
+#
+# Every key is documented in specs.md §6.3.
+
+identity:
+  user_name: "Jane Doe"
+  timezone: "Asia/Karachi"               # IANA zone name
+  delivery_address: "jane@example.com"
+  run_time: "08:00"                      # local time; OS scheduler invokes app.run
+
+gmail:
+  allowlist:
+    - "ceo@client.com"
+  trusted_domains:
+    - "arbisoft.com"
+  fetch_window_hours: 24
+
+plane:
+  base_url: "https://api.plane.so"       # or self-hosted URL
+  project_ids:
+    - "proj-abc-123"
+  ignore_list: []
+  rolling_window_days: 7
+
+thresholds:
+  inactivity_days: 4
+  overdue_grace_days: 0
+  load_multiplier: 1.5
+  due_soon_horizon_days: 7
+
+llm:
+  model: "claude-sonnet-4-6"
+  max_tokens_per_node: 4096
+  batch_mode: true                       # false = per-item calls

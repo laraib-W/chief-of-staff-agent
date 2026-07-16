@@ -13,14 +13,14 @@ chief-of-staff-agent/
 │   ├── graph/
 │   │   └── workflow.py          # StateGraph wiring only
 │   ├── nodes/                   # one file per node
-│   │   ├── fetch_email.py
+│   │   ├── fetch_emails.py
 │   │   ├── fetch_calendar.py
 │   │   ├── fetch_plane.py
-│   │   ├── classify_email.py
+│   │   ├── classify_emails.py
 │   │   ├── analyze_day.py
 │   │   ├── assess_team.py
 │   │   ├── correlate.py
-│   │   └── render_digest.py
+│   │   └── render_and_deliver.py
 │   ├── providers/               # all external I/O lives here
 │   │   ├── gmail.py
 │   │   ├── calendar.py
@@ -249,7 +249,7 @@ Follow Conventional Commits:
 **Examples:**
 
 ```
-feat(nodes): add classify_email node with batched LLM call
+feat(nodes): add classify_emails node with batched LLM call
 
 Implements ADR-005: LLM handles classification and ask extraction;
 urgency enum and deadline parsing validated by Pydantic schema.
@@ -269,24 +269,23 @@ docs(adr): record decision to reject custom LLMProvider abstraction
 # Clone and enter the repo
 git clone <repo-url> && cd chief-of-staff-agent
 
-# Create a virtual environment
-python -m venv .venv && source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt   # ruff, pytest, detect-secrets, etc.
+# Install dependencies (uv creates and manages the virtualenv)
+uv sync --extra dev
 
 # Copy the environment template and fill in your credentials
 cp .env.example .env
 chmod 600 .env
 
+# Copy the config template and fill in identity / allowlists / project IDs
+cp config.example.yaml config.yaml
+
 # Install pre-commit hooks
 pre-commit install
 
 # Verify everything works
-ruff check .
-pytest tests/unit
-python -m app.run --replay
+uv run ruff check .
+uv run pytest tests/unit
+uv run python -m app.run --replay
 ```
 
 ---
