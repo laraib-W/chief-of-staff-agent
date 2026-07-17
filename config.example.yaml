@@ -16,6 +16,7 @@ gmail:
   trusted_domains:
     - "arbisoft.com"
   fetch_window_hours: 24
+  max_body_chars: 2000                   # body length cap (SECURITY.md §3)
 
 plane:
   base_url: "https://api.plane.so"       # or self-hosted URL
