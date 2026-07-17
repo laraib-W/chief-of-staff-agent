@@ -444,6 +444,8 @@ llm:
 | `allowlist`           | list[string]  | `[]`    | Tier-1 senders auto-trusted with no LLM check.                                |
 | `trusted_domains`     | list[string]  | `[]`    | Tier-2 domains auto-trusted (e.g. `arbisoft.com`).                            |
 | `fetch_window_hours`  | int           | `24`    | How far back to query Gmail on each run.                                      |
+| `max_body_chars`      | int           | `2000`  | Body length cap applied during sanitization (SECURITY.md §3).                 |
+| `max_unknown_sender_llm_calls` | int  | `20`    | Per-run cap on Tier-3 unknown-sender LLM calls (§7). Senders past the cap are tagged `unchecked`, never dropped. |
 
 **`plane`** — which projects to read and how to derive people (§3.1.3).
 

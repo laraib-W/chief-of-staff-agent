@@ -30,6 +30,7 @@ class GmailConfig(_Strict):
     trusted_domains: list[str] = Field(default_factory=list)
     fetch_window_hours: int = 24
     max_body_chars: int = 2000
+    max_unknown_sender_llm_calls: int = 20
 
 
 class PlaneConfig(_Strict):

@@ -17,6 +17,7 @@ gmail:
     - "arbisoft.com"
   fetch_window_hours: 24
   max_body_chars: 2000                   # body length cap (SECURITY.md §3)
+  max_unknown_sender_llm_calls: 20       # Tier-3 LLM-call cap per run (specs.md §7)
 
 plane:
   base_url: "https://api.plane.so"       # or self-hosted URL
