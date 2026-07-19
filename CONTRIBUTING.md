@@ -279,8 +279,8 @@ chmod 600 .env
 # Copy the config template and fill in identity / allowlists / project IDs
 cp config.example.yaml config.yaml
 
-# Install pre-commit hooks
-pre-commit install
+# Install pre-commit hooks (runs ruff + detect-secrets on every commit)
+uv run pre-commit install
 
 # Verify everything works
 uv run ruff check .

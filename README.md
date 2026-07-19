@@ -144,6 +144,8 @@ Point your OS scheduler at `python -m app.run` at your configured `run_time`.
 | [docs/roadmap.md](docs/roadmap.md) | Build phases 0–4 with deliverables and exit criteria.    |
 ## Status
 
+![CI](https://github.com/laraib-W/chief-of-staff-agent/actions/workflows/ci.yml/badge.svg)
+
 Pre-release — Phase 0 scaffold in progress. See [docs/roadmap.md](docs/roadmap.md)
 for the build phases and [EVALUATION.md](EVALUATION.md) for the exit criteria
 that gate each one.
