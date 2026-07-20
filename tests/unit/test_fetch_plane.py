@@ -148,7 +148,7 @@ def _raise_plane_auth_error():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_read_token_missing_raises(monkeypatch):
     """Missing PLANE_API_TOKEN raises PlaneAuthError with 'not set' message."""
     monkeypatch.delenv("PLANE_API_TOKEN", raising=False)
@@ -156,7 +156,7 @@ def test_read_token_missing_raises(monkeypatch):
         read_plane_token_from_env()
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_read_token_empty_raises(monkeypatch):
     """Empty PLANE_API_TOKEN raises PlaneAuthError with 'empty' message."""
     monkeypatch.setenv("PLANE_API_TOKEN", "")
@@ -164,7 +164,7 @@ def test_read_token_empty_raises(monkeypatch):
         read_plane_token_from_env()
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_read_token_whitespace_only_raises(monkeypatch):
     """Whitespace-only PLANE_API_TOKEN is treated as empty."""
     monkeypatch.setenv("PLANE_API_TOKEN", "   ")
@@ -172,7 +172,7 @@ def test_read_token_whitespace_only_raises(monkeypatch):
         read_plane_token_from_env()
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_read_token_valid_returns_token(monkeypatch):
     """A valid token is returned as-is."""
     monkeypatch.setenv("PLANE_API_TOKEN", "tok-abc-123")
@@ -184,7 +184,7 @@ def test_read_token_valid_returns_token(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_happy_path_returns_issues(monkeypatch):
     """Node returns PlaneIssue objects when the API responds successfully."""
     mock_client = _make_mock_client(
@@ -202,7 +202,7 @@ def test_happy_path_returns_issues(monkeypatch):
     assert result.get("errors", {}).get("plane") is None
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_happy_path_uses_api_identifier(monkeypatch):
     """issue_id comes from list_projects identifier, not the config UUID."""
     mock_client = _make_mock_client([_make_raw_issue(7, "Some task")])
@@ -214,7 +214,7 @@ def test_happy_path_uses_api_identifier(monkeypatch):
     assert result["plane_issues"][0].issue_id == f"{_DEFAULT_IDENTIFIER}-7"
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_unknown_project_id_falls_back_to_uuid_with_warning(monkeypatch, capsys):
     """If project_id isn't in the workspace, issue_id falls back to the UUID."""
     mock_client = _make_mock_client([_make_raw_issue(1, "Task")])
@@ -229,7 +229,7 @@ def test_unknown_project_id_falls_back_to_uuid_with_warning(monkeypatch, capsys)
     assert "project_not_in_workspace" in capsys.readouterr().out
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_token_failure_writes_error_and_returns_empty(monkeypatch):
     """PlaneAuthError from the auth layer maps to errors['plane'] and an empty list."""
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", _raise_plane_auth_error)
@@ -240,7 +240,7 @@ def test_token_failure_writes_error_and_returns_empty(monkeypatch):
     assert "PLANE_API_TOKEN" in result["errors"]["plane"]
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_workspace_slug_empty_skips_silently(monkeypatch):
     """Empty workspace_slug returns empty issues with no error and no API calls."""
     mock_client = _make_mock_client([])
@@ -256,7 +256,7 @@ def test_workspace_slug_empty_skips_silently(monkeypatch):
     mock_client.get_issues.assert_not_called()
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_empty_project_returns_empty_list(monkeypatch):
     """An empty project produces an empty plane_issues list without an error."""
     mock_client = _make_mock_client([])
@@ -269,7 +269,7 @@ def test_empty_project_returns_empty_list(monkeypatch):
     assert result.get("errors", {}).get("plane") is None
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_ignore_list_excludes_assignee(monkeypatch):
     """Issues belonging to an ignored assignee are dropped from the output."""
     mock_client = _make_mock_client(
@@ -290,7 +290,7 @@ def test_ignore_list_excludes_assignee(monkeypatch):
     assert "Task B" not in titles
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_overdue_flag_set_correctly(monkeypatch):
     """is_overdue is True for past due dates on non-completed issues."""
     mock_client = _make_mock_client(
@@ -323,7 +323,7 @@ def test_overdue_flag_set_correctly(monkeypatch):
     assert by_title["Done task"].is_overdue is False
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_rolling_window_excludes_completed_with_no_timestamp(monkeypatch):
     """Completed/cancelled issues with no completed_at are dropped."""
     mock_client = _make_mock_client(
@@ -350,7 +350,7 @@ def test_rolling_window_excludes_completed_with_no_timestamp(monkeypatch):
     assert "No timestamp cancelled" not in titles
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_rolling_window_excludes_old_completed(monkeypatch):
     """Python-side guard drops closed issues with completed_at before the window.
 
@@ -403,7 +403,7 @@ def test_rolling_window_excludes_old_completed(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_list_projects_prints_name_and_id(monkeypatch):
     """--list-projects prints each project's name and ID."""
     plane_cfg = MagicMock()
@@ -430,7 +430,7 @@ def test_list_projects_prints_name_and_id(monkeypatch):
     assert "id-002" in out
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_list_projects_exits_2_on_missing_token(monkeypatch):
     """--list-projects exits 2 when PLANE_API_TOKEN is missing."""
     plane_cfg = MagicMock()
@@ -449,7 +449,7 @@ def test_list_projects_exits_2_on_missing_token(monkeypatch):
     assert "PLANE_API_TOKEN" in err
 
 
-@pytest.mark.unit()
+@pytest.mark.unit
 def test_list_projects_exits_2_on_api_error(monkeypatch):
     """--list-projects exits 2 when the Plane API call fails."""
     plane_cfg = MagicMock()
