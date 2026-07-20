@@ -2,30 +2,10 @@
 
 from datetime import UTC, datetime
 
-from app.config.loader import (
-    Config,
-    GmailConfig,
-    IdentityConfig,
-    LLMConfig,
-    PlaneConfig,
-    ThresholdsConfig,
-)
 from app.nodes.fetch_emails import fetch_emails_node
 from app.providers import gmail
 from app.schemas.email import RawEmail
-
-
-def _config() -> Config:
-    return Config(
-        identity=IdentityConfig(
-            user_name="T", timezone="UTC", delivery_address="t@x.com"
-        ),
-        gmail=GmailConfig(),
-        plane=PlaneConfig(project_ids=["p1"]),
-        thresholds=ThresholdsConfig(),
-        llm=LLMConfig(),
-        config_hash="x",
-    )
+from tests.conftest import make_config
 
 
 def test_fetch_emails_node_writes_emails_and_clears_error(monkeypatch):
@@ -37,9 +17,11 @@ def test_fetch_emails_node_writes_emails_and_clears_error(monkeypatch):
         clean_body="hi",
         date=datetime.now(UTC),
     )
-    monkeypatch.setattr(gmail, "fetch_emails", lambda cfg: ([fake_email], None))
+    monkeypatch.setattr(
+        gmail.GmailClient, "fetch_emails", lambda self: ([fake_email], None)
+    )
 
-    node = fetch_emails_node(_config())
+    node = fetch_emails_node(make_config())
     result = node({"errors": {}})
 
     assert result["emails"] == [fake_email]
@@ -48,10 +30,12 @@ def test_fetch_emails_node_writes_emails_and_clears_error(monkeypatch):
 
 def test_fetch_emails_node_writes_error_and_empty_list_on_failure(monkeypatch):
     monkeypatch.setattr(
-        gmail, "fetch_emails", lambda cfg: ([], "Gmail fetch failed: boom")
+        gmail.GmailClient,
+        "fetch_emails",
+        lambda self: ([], "Gmail fetch failed: boom"),
     )
 
-    node = fetch_emails_node(_config())
+    node = fetch_emails_node(make_config())
     result = node({"errors": {}})
 
     assert result["emails"] == []
@@ -59,9 +43,9 @@ def test_fetch_emails_node_writes_error_and_empty_list_on_failure(monkeypatch):
 
 
 def test_fetch_emails_node_preserves_other_error_keys(monkeypatch):
-    monkeypatch.setattr(gmail, "fetch_emails", lambda cfg: ([], None))
+    monkeypatch.setattr(gmail.GmailClient, "fetch_emails", lambda self: ([], None))
 
-    node = fetch_emails_node(_config())
+    node = fetch_emails_node(make_config())
     result = node({"errors": {"calendar": "calendar down"}})
 
     assert result["errors"] == {"calendar": "calendar down", "gmail": None}

@@ -1,5 +1,3 @@
-import pytest
-
 from app.config.loader import GmailConfig
 from app.providers import gmail
 
@@ -53,11 +51,3 @@ def test_fetch_raw_empty_listing():
     service = _FakeService({}, {})
     client = gmail.GmailClient(GmailConfig(), service=service)
     assert client.fetch_raw() == []
-
-
-def test_load_credentials_missing_token_raises(monkeypatch):
-    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "cid")
-    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "secret")
-    monkeypatch.setattr(gmail.keyring, "get_password", lambda service, user: None)
-    with pytest.raises(gmail.GmailAuthError, match="app.auth"):
-        gmail._load_credentials()

@@ -1,6 +1,6 @@
 import base64
 
-from app.providers import _sanitize
+from app.providers._internal import sanitize as _sanitize
 from app.schemas.email import RawEmail
 
 
@@ -27,7 +27,9 @@ def test_truncate_under_cap_passthrough():
 def test_sanitize_message_full_pipeline():
     body = "<p>Real ask here.</p>\n> quoted old\n-- \nJane"
     raw = {
-        "id": "m9", "threadId": "t9", "internalDate": "1752652800000",
+        "id": "m9",
+        "threadId": "t9",
+        "internalDate": "1752652800000",
         "payload": {
             "mimeType": "text/html",
             "headers": [
@@ -48,7 +50,9 @@ def test_sanitize_message_full_pipeline():
 
 def test_sanitize_message_respects_max_chars():
     raw = {
-        "id": "m10", "threadId": "t10", "internalDate": "1752652800000",
+        "id": "m10",
+        "threadId": "t10",
+        "internalDate": "1752652800000",
         "payload": {
             "mimeType": "text/plain",
             "headers": [{"name": "Subject", "value": "s"}],
@@ -73,7 +77,9 @@ def test_sanitize_message_html_only_no_literal_newlines_strips_quote_and_signatu
         "<div>Jane Doe</div>"
     )
     raw = {
-        "id": "m11", "threadId": "t11", "internalDate": "1752652800000",
+        "id": "m11",
+        "threadId": "t11",
+        "internalDate": "1752652800000",
         "payload": {
             "mimeType": "text/html",
             "headers": [{"name": "Subject", "value": "Ask"}],

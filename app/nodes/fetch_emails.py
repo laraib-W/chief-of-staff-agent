@@ -2,9 +2,13 @@
 
 from collections.abc import Callable
 
+import structlog
+
 from app.config.loader import Config
 from app.providers import gmail
 from app.schemas.digest import AgentState
+
+log = structlog.get_logger(__name__)
 
 
 def fetch_emails_node(config: Config) -> Callable[[AgentState], AgentState]:
@@ -15,7 +19,11 @@ def fetch_emails_node(config: Config) -> Callable[[AgentState], AgentState]:
     """
 
     def _node(state: AgentState) -> AgentState:
-        emails, error = gmail.fetch_emails(config)
+        emails, error = gmail.GmailClient(config.gmail).fetch_emails()
+        if error:
+            log.warning("fetch_emails_node.error", error=error)
+        else:
+            log.info("fetch_emails_node.ok", count=len(emails))
         errors = dict(state.get("errors") or {})
         errors["gmail"] = error
         return {"emails": emails, "errors": errors}

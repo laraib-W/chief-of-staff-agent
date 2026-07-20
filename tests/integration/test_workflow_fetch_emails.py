@@ -2,30 +2,10 @@
 
 from datetime import UTC, datetime
 
-from app.config.loader import (
-    Config,
-    GmailConfig,
-    IdentityConfig,
-    LLMConfig,
-    PlaneConfig,
-    ThresholdsConfig,
-)
 from app.graph.workflow import build_graph
 from app.providers import gmail
 from app.schemas.email import RawEmail
-
-
-def _config() -> Config:
-    return Config(
-        identity=IdentityConfig(
-            user_name="T", timezone="UTC", delivery_address="t@x.com"
-        ),
-        gmail=GmailConfig(),
-        plane=PlaneConfig(project_ids=["p1"]),
-        thresholds=ThresholdsConfig(),
-        llm=LLMConfig(),
-        config_hash="x",
-    )
+from tests.conftest import make_config
 
 
 def test_graph_invoke_runs_fetch_emails_node(monkeypatch):
@@ -37,9 +17,11 @@ def test_graph_invoke_runs_fetch_emails_node(monkeypatch):
         clean_body="hi",
         date=datetime.now(UTC),
     )
-    monkeypatch.setattr(gmail, "fetch_emails", lambda cfg: ([fake_email], None))
+    monkeypatch.setattr(
+        gmail.GmailClient, "fetch_emails", lambda self: ([fake_email], None)
+    )
 
-    graph = build_graph(_config())
+    graph = build_graph(make_config())
     final_state = graph.invoke({"errors": {}})
 
     assert final_state["emails"] == [fake_email]

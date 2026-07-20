@@ -12,6 +12,73 @@ from bs4 import BeautifulSoup
 
 from app.schemas.email import RawEmail
 
+TRACKING_DOMAINS: frozenset[str] = frozenset(
+    {
+        "click.mailchimp.com",
+        "list-manage.com",
+        "sendgrid.net",
+        "mandrillapp.com",
+        "sparkpostmail.com",
+        "click.e.example.com",
+    }
+)
+
+_BLOCK_TAGS = frozenset(
+    {
+        "p",
+        "div",
+        "blockquote",
+        "li",
+        "tr",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "ul",
+        "ol",
+        "table",
+        "section",
+        "article",
+        "header",
+        "footer",
+        "pre",
+    }
+)
+
+_URL_RE = re.compile(r"https?://[^\s)>\]]+")
+_WS_RE = re.compile(r"[ \t]+")
+_TRAILING_PUNCT_RE = re.compile("[.,;:!?\"')\\]}]+$")
+_MULTI_SPACE_RE = re.compile(r"[ \t]{2,}")
+
+_ON_WROTE_RE = re.compile(r"^On .+wrote:$", re.MULTILINE)
+_OUTLOOK_RE = re.compile(
+    r"^-{2,}\s*Original Message\s*-{2,}$", re.MULTILINE | re.IGNORECASE
+)
+_SIG_CLOSING_RE = re.compile(
+    r"^(regards|best|thanks|cheers|sincerely)[,!.]?$", re.IGNORECASE
+)
+
+_INVISIBLE = dict.fromkeys(
+    [
+        0x200B,
+        0x200C,
+        0x200D,
+        0xFEFF,
+        0x202A,
+        0x202B,
+        0x202C,
+        0x202D,
+        0x202E,
+        0x2066,
+        0x2067,
+        0x2068,
+        0x2069,
+    ],
+    None,
+)
+
 
 def _b64url_decode(data: str) -> str:
     padded = data + "=" * (-len(data) % 4)
@@ -60,27 +127,6 @@ def extract_body(raw: dict) -> str:
     return ""
 
 
-TRACKING_DOMAINS: frozenset[str] = frozenset({
-    "click.mailchimp.com",
-    "list-manage.com",
-    "sendgrid.net",
-    "mandrillapp.com",
-    "sparkpostmail.com",
-    "click.e.example.com",
-})
-
-_URL_RE = re.compile(r"https?://[^\s)>\]]+")
-_WS_RE = re.compile(r"[ \t]+")
-_TRAILING_PUNCT_RE = re.compile("[.,;:!?\"')\\]}]+$")
-_MULTI_SPACE_RE = re.compile(r"[ \t]{2,}")
-
-
-_BLOCK_TAGS = frozenset({
-    "p", "div", "blockquote", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6",
-    "ul", "ol", "table", "section", "article", "header", "footer", "pre",
-})
-
-
 def strip_html(text: str) -> str:
     soup = BeautifulSoup(text, "lxml")
     for tag in soup(["script", "style"]):
@@ -101,9 +147,7 @@ def _clean_url(url: str) -> str | None:
     if any(host == d or host.endswith("." + d) for d in TRACKING_DOMAINS):
         return None
     kept = [
-        (k, v)
-        for k, v in parse_qsl(parsed.query)
-        if not k.lower().startswith("utm_")
+        (k, v) for k, v in parse_qsl(parsed.query) if not k.lower().startswith("utm_")
     ]
     return urlunparse(parsed._replace(query=urlencode(kept)))
 
@@ -119,15 +163,6 @@ def strip_tracking(text: str) -> str:
 
     result = _URL_RE.sub(_sub, text)
     return _MULTI_SPACE_RE.sub(" ", result)
-
-
-_ON_WROTE_RE = re.compile(r"^On .+wrote:$", re.MULTILINE)
-_OUTLOOK_RE = re.compile(
-    r"^-{2,}\s*Original Message\s*-{2,}$", re.MULTILINE | re.IGNORECASE
-)
-_SIG_CLOSING_RE = re.compile(
-    r"^(regards|best|thanks|cheers|sincerely)[,!.]?$", re.IGNORECASE
-)
 
 
 def _earliest_cut(text: str, indices: list[int]) -> str:
@@ -165,13 +200,6 @@ def strip_signature(text: str) -> str:
     return text.strip()
 
 
-_INVISIBLE = dict.fromkeys(
-    [0x200B, 0x200C, 0x200D, 0xFEFF, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E,
-     0x2066, 0x2067, 0x2068, 0x2069],
-    None,
-)
-
-
 def normalize_unicode(text: str) -> str:
     return unicodedata.normalize("NFC", text).translate(_INVISIBLE)
 
@@ -184,10 +212,10 @@ def sanitize_message(raw: dict, max_body_chars: int) -> RawEmail:
     headers = extract_headers(raw)
     body = extract_body(raw)
     body = strip_html(body)
+    body = normalize_unicode(body)
     body = strip_tracking(body)
     body = strip_quotes(body)
     body = strip_signature(body)
-    body = normalize_unicode(body)
     body = truncate(body, max_body_chars)
     return RawEmail(
         id=headers["id"],

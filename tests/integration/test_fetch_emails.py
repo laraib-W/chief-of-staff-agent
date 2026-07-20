@@ -1,33 +1,17 @@
 import pytest
 
-from app.config.loader import (
-    Config,
-    GmailConfig,
-    IdentityConfig,
-    LLMConfig,
-    PlaneConfig,
-    ThresholdsConfig,
-)
+from app.auth import CredentialsError
 from app.providers import gmail
 from app.schemas.email import RawEmail
-
-
-def _config() -> Config:
-    return Config(
-        identity=IdentityConfig(
-            user_name="T", timezone="UTC", delivery_address="t@x.com"
-        ),
-        gmail=GmailConfig(),
-        plane=PlaneConfig(project_ids=["p1"]),
-        thresholds=ThresholdsConfig(),
-        llm=LLMConfig(),
-        config_hash="deadbeef",
-    )
+from tests.conftest import load_gmail_fixture, make_config
 
 
 @pytest.mark.replay
-def test_fetch_emails_replay_sanitizes_fixture():
-    emails, error = gmail.fetch_emails(_config(), replay=True)
+def test_fetch_emails_replay_sanitizes_fixture(monkeypatch):
+    fixture = load_gmail_fixture()
+    monkeypatch.setattr(gmail.GmailClient, "fetch_raw", lambda self: fixture)
+
+    emails, error = gmail.GmailClient(make_config().gmail).fetch_emails()
     assert error is None
     assert len(emails) == 1
     assert isinstance(emails[0], RawEmail)
@@ -37,10 +21,10 @@ def test_fetch_emails_replay_sanitizes_fixture():
 
 def test_fetch_emails_error_returns_empty(monkeypatch):
     def _boom(self):
-        raise RuntimeError("gmail down")
+        raise CredentialsError("gmail down")
 
     monkeypatch.setattr(gmail.GmailClient, "fetch_raw", _boom)
-    emails, error = gmail.fetch_emails(_config())
+    emails, error = gmail.GmailClient(make_config().gmail).fetch_emails()
     assert emails == []
     assert "gmail down" in error
 
@@ -59,7 +43,7 @@ def test_fetch_emails_skips_malformed_message(monkeypatch):
     }  # int() raises -> skipped
 
     monkeypatch.setattr(gmail.GmailClient, "fetch_raw", lambda self: [good, bad])
-    emails, error = gmail.fetch_emails(_config())
+    emails, error = gmail.GmailClient(make_config().gmail).fetch_emails()
     assert error is None
     assert [e.id for e in emails] == ["g"]
 
@@ -73,9 +57,21 @@ def test_fetch_emails_skip_handler_survives_non_dict_message(monkeypatch):
     }
     non_dict = "garbage"
 
-    monkeypatch.setattr(
-        gmail.GmailClient, "fetch_raw", lambda self: [good, non_dict]
-    )
-    emails, error = gmail.fetch_emails(_config())
+    monkeypatch.setattr(gmail.GmailClient, "fetch_raw", lambda self: [good, non_dict])
+    emails, error = gmail.GmailClient(make_config().gmail).fetch_emails()
     assert error is None
     assert [e.id for e in emails] == ["g2"]
+
+
+def test_fetch_emails_all_messages_failed_returns_error(monkeypatch):
+    bad = {
+        "id": "b",
+        "internalDate": "not-a-number",
+        "payload": {"headers": []},
+    }  # int() raises -> skipped, and it's the only message
+
+    monkeypatch.setattr(gmail.GmailClient, "fetch_raw", lambda self: [bad])
+    emails, error = gmail.GmailClient(make_config().gmail).fetch_emails()
+    assert emails == []
+    assert error is not None
+    assert "All 1 fetched messages failed to sanitize" in error

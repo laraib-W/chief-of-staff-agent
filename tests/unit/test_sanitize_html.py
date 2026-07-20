@@ -1,4 +1,4 @@
-from app.providers import _sanitize
+from app.providers._internal import sanitize as _sanitize
 
 
 def test_strip_html_removes_tags():

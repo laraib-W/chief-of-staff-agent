@@ -11,7 +11,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from app.providers import _sanitize
+from app.providers._internal import sanitize as _sanitize
 
 pytestmark = pytest.mark.fuzz
 

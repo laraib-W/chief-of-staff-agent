@@ -1,7 +1,7 @@
 import base64
 from datetime import UTC
 
-from app.providers import _sanitize
+from app.providers._internal import sanitize as _sanitize
 
 
 def _b64(text: str) -> str:
@@ -9,10 +9,13 @@ def _b64(text: str) -> str:
 
 
 def _raw(body_text="hi", mime="text/plain", parts=None):
-    payload = {"mimeType": mime, "headers": [
-        {"name": "From", "value": "Alice <alice@example.com>"},
-        {"name": "Subject", "value": "Hello"},
-    ]}
+    payload = {
+        "mimeType": mime,
+        "headers": [
+            {"name": "From", "value": "Alice <alice@example.com>"},
+            {"name": "Subject", "value": "Hello"},
+        ],
+    }
     if parts is not None:
         payload["parts"] = parts
     else:

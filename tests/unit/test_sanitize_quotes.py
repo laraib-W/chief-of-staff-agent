@@ -1,4 +1,4 @@
-from app.providers import _sanitize
+from app.providers._internal import sanitize as _sanitize
 
 
 def test_strip_quotes_gt_lines():
@@ -8,8 +8,7 @@ def test_strip_quotes_gt_lines():
 
 def test_strip_quotes_on_wrote_block():
     text = (
-        "Answer here.\nOn Mon, Jul 14, 2026 at 9:00 AM Bob <b@x.com>"
-        " wrote:\nold stuff"
+        "Answer here.\nOn Mon, Jul 14, 2026 at 9:00 AM Bob <b@x.com> wrote:\nold stuff"
     )
     assert _sanitize.strip_quotes(text) == "Answer here."
 
