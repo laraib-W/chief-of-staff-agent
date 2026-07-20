@@ -33,6 +33,7 @@ gmail:
   fetch_window_hours: 24
 plane:
   base_url: "https://api.plane.so"
+  workspace_slug: ""
   project_ids: ["proj-smoke-test"]
 thresholds:
   inactivity_days: 4
@@ -46,7 +47,7 @@ llm:
 """
 
 
-@pytest.mark.integration
+@pytest.mark.integration()
 @pytest.mark.parametrize(
     "extra_args",
     [[], ["--replay"]],
@@ -79,9 +80,9 @@ def test_dry_run_smoke_completes_end_to_end(tmp_path, extra_args):
         f"stdout: {result.stdout}\n"
         f"stderr: {result.stderr}"
     )
-    assert elapsed < _SMOKE_TIMEOUT_SECONDS, (
-        f"smoke run took {elapsed:.2f}s, expected < {_SMOKE_TIMEOUT_SECONDS}s"
-    )
+    assert (
+        elapsed < _SMOKE_TIMEOUT_SECONDS
+    ), f"smoke run took {elapsed:.2f}s, expected < {_SMOKE_TIMEOUT_SECONDS}s"
 
     runs_db = data_dir / "runs.db"
     assert runs_db.exists(), "runs.db was not created"
@@ -100,6 +101,6 @@ def test_dry_run_smoke_completes_end_to_end(tmp_path, extra_args):
     with memory_store.connect(memory_db) as conn:
         count = conn.execute("SELECT COUNT(*) FROM digest_log").fetchone()[0]
 
-    assert count == 0, (
-        f"digest_log should be empty during --dry-run but has {count} row(s)"
-    )
+    assert (
+        count == 0
+    ), f"digest_log should be empty during --dry-run but has {count} row(s)"
