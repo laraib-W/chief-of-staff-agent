@@ -38,6 +38,28 @@ def _age_in_state_days(state_updated_at: str | None) -> int:
     return max(0, (today - dt.date()).days)
 
 
+def _should_stop(
+    page_results: list[dict],
+    state_lookup: dict[str, dict],
+    window_cutoff: datetime,
+) -> bool:
+    """Return True when every issue on the page is closed and older than the window.
+
+    Active issues are always fetched regardless of last update date. Only once a
+    full page is entirely old closed issues can we safely stop — all later pages
+    (sorted newest-updated-first) will be older still.
+    """
+    if not page_results:
+        return True
+    for raw in page_results:
+        state_group = state_lookup.get(raw.get("state", ""), {}).get("group", "")
+        if state_group not in ("completed", "cancelled"):
+            return False
+    dates = [_parse_dt(raw.get("updated_at")) for raw in page_results]
+    valid = [d for d in dates if d is not None]
+    return bool(valid) and min(valid) < window_cutoff
+
+
 def _map_issue(
     raw: dict,
     project_id: str,
@@ -120,30 +142,11 @@ def fetch_plane(state: AgentState, config: RunnableConfig) -> dict:
                 ):
                     module_lookup[issue["id"]] = module["name"]
 
-            def _should_stop(
-                page_results: list[dict], _sl: dict = state_lookup
-            ) -> bool:
-                """Stop only when every page is entirely old closed issues.
-
-                Active issues are always fetched regardless of last update date.
-                Only once a full page is entirely old closed issues can we safely
-                stop — all later pages will be older still.
-                """
-                if not page_results:
-                    return True
-                for raw in page_results:
-                    state_group = _sl.get(raw.get("state", ""), {}).get("group", "")
-                    if state_group not in ("completed", "cancelled"):
-                        return False
-                dates = [_parse_dt(raw.get("updated_at")) for raw in page_results]
-                valid = [d for d in dates if d is not None]
-                return bool(valid) and min(valid) < window_cutoff
-
             raw_issues = client.get_issues(
                 plane_cfg.workspace_slug,
                 project_id,
                 order_by="-updated_at",
-                stop_early=_should_stop,
+                stop_early=lambda p: _should_stop(p, state_lookup, window_cutoff),
             )
             project_identifier = project_identifiers.get(project_id)
             if project_identifier is None:
