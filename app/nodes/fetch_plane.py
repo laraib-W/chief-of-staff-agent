@@ -17,6 +17,8 @@ from app.schemas.plane import PlaneIssue
 
 log = structlog.get_logger(__name__)
 
+_ORDER_BY_UPDATED = "-updated_at"
+
 
 def _parse_dt(value: str | None) -> datetime | None:
     if not value:
@@ -145,7 +147,7 @@ def fetch_plane(state: AgentState, config: RunnableConfig) -> dict:
             raw_issues = client.get_issues(
                 plane_cfg.workspace_slug,
                 project_id,
-                order_by="-updated_at",
+                order_by=_ORDER_BY_UPDATED,
                 stop_early=lambda p: _should_stop(p, state_lookup, window_cutoff),
             )
             project_identifier = project_identifiers.get(project_id)
