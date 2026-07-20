@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import anthropic
 
-from app.config.loader import Config
+from app.config.loader import LLMConfig
 
 
-def complete(config: Config, prompt: str, *, max_tokens: int = 200) -> str:
+def complete(llm_config: LLMConfig, prompt: str, *, max_tokens: int = 200) -> str:
     """Single Anthropic completion call. Raises on failure — callers decide fallback."""
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model=config.llm.model,
+        model=llm_config.model,
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )

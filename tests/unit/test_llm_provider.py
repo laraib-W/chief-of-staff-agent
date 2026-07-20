@@ -1,25 +1,5 @@
-from app.config.loader import (
-    Config,
-    GmailConfig,
-    IdentityConfig,
-    LLMConfig,
-    PlaneConfig,
-    ThresholdsConfig,
-)
+from app.config.loader import LLMConfig
 from app.providers import llm
-
-
-def _config() -> Config:
-    return Config(
-        identity=IdentityConfig(
-            user_name="T", timezone="UTC", delivery_address="t@x.com"
-        ),
-        gmail=GmailConfig(),
-        plane=PlaneConfig(project_ids=["p1"]),
-        thresholds=ThresholdsConfig(),
-        llm=LLMConfig(model="claude-test-model"),
-        config_hash="x",
-    )
 
 
 class _FakeTextBlock:
@@ -50,7 +30,9 @@ def test_complete_passes_model_and_prompt(monkeypatch):
     fake_client = _FakeAnthropic()
     monkeypatch.setattr(llm.anthropic, "Anthropic", lambda: fake_client)
 
-    result = llm.complete(_config(), "Is this spam?", max_tokens=50)
+    result = llm.complete(
+        LLMConfig(model="claude-test-model"), "Is this spam?", max_tokens=50
+    )
 
     assert result == "yes"
     call = fake_client.messages.calls[0]
@@ -63,6 +45,6 @@ def test_complete_default_max_tokens(monkeypatch):
     fake_client = _FakeAnthropic()
     monkeypatch.setattr(llm.anthropic, "Anthropic", lambda: fake_client)
 
-    llm.complete(_config(), "prompt")
+    llm.complete(LLMConfig(), "prompt")
 
     assert fake_client.messages.calls[0]["max_tokens"] == 200

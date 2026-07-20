@@ -2,16 +2,14 @@
 
 from datetime import UTC, datetime
 
-from app.config.loader import (
-    Config,
-    GmailConfig,
-    IdentityConfig,
-    LLMConfig,
-    PlaneConfig,
-    ThresholdsConfig,
+from app.config.loader import GmailConfig, LLMConfig
+from app.providers import llm
+from app.providers._internal import _sender_filter
+from app.providers._internal._sender_filter import (
+    _domain_of,
+    _extract_address,
+    classify_sender,
 )
-from app.providers import _sender_filter, llm
-from app.providers._sender_filter import _domain_of, _extract_address, classify_sender
 from app.schemas.email import RawEmail
 
 
@@ -68,19 +66,6 @@ def test_classify_sender_allowlist_takes_priority_over_trusted_domain():
     assert classify_sender("ceo@arbisoft.com", config) == "allowlist"
 
 
-def _config(**gmail_overrides) -> Config:
-    return Config(
-        identity=IdentityConfig(
-            user_name="T", timezone="UTC", delivery_address="t@x.com"
-        ),
-        gmail=GmailConfig(**gmail_overrides),
-        plane=PlaneConfig(project_ids=["p1"]),
-        thresholds=ThresholdsConfig(),
-        llm=LLMConfig(),
-        config_hash="x",
-    )
-
-
 def _email(sender: str, **overrides) -> RawEmail:
     fields = dict(
         id="m1",
@@ -98,10 +83,10 @@ def test_apply_sender_filter_allowlist_no_llm_call(monkeypatch):
     called = []
     monkeypatch.setattr(llm, "complete", lambda *a, **k: called.append(1) or "yes")
 
-    config = _config(allowlist=["ceo@client.com"])
+    gmail_config = GmailConfig(allowlist=["ceo@client.com"])
     emails = [_email("CEO@Client.com")]
 
-    result = _sender_filter.apply_sender_filter(emails, config)
+    result = _sender_filter.apply_sender_filter(emails, gmail_config, LLMConfig())
 
     assert result[0].sender_tier == "allowlist"
     assert called == []
@@ -111,10 +96,10 @@ def test_apply_sender_filter_trusted_domain_no_llm_call(monkeypatch):
     called = []
     monkeypatch.setattr(llm, "complete", lambda *a, **k: called.append(1) or "yes")
 
-    config = _config(trusted_domains=["arbisoft.com"])
+    gmail_config = GmailConfig(trusted_domains=["arbisoft.com"])
     emails = [_email("dev@arbisoft.com")]
 
-    result = _sender_filter.apply_sender_filter(emails, config)
+    result = _sender_filter.apply_sender_filter(emails, gmail_config, LLMConfig())
 
     assert result[0].sender_tier == "trusted_domain"
     assert called == []
@@ -123,10 +108,10 @@ def test_apply_sender_filter_trusted_domain_no_llm_call(monkeypatch):
 def test_apply_sender_filter_unknown_sender_llm_trusted(monkeypatch):
     monkeypatch.setattr(llm, "complete", lambda *a, **k: "Yes, this looks real.")
 
-    config = _config()
+    gmail_config = GmailConfig()
     emails = [_email("stranger@nowhere.com")]
 
-    result = _sender_filter.apply_sender_filter(emails, config)
+    result = _sender_filter.apply_sender_filter(emails, gmail_config, LLMConfig())
 
     assert result[0].sender_tier == "llm_trusted"
 
@@ -134,10 +119,10 @@ def test_apply_sender_filter_unknown_sender_llm_trusted(monkeypatch):
 def test_apply_sender_filter_unknown_sender_llm_flagged(monkeypatch):
     monkeypatch.setattr(llm, "complete", lambda *a, **k: "No, this looks automated.")
 
-    config = _config()
+    gmail_config = GmailConfig()
     emails = [_email("stranger@nowhere.com")]
 
-    result = _sender_filter.apply_sender_filter(emails, config)
+    result = _sender_filter.apply_sender_filter(emails, gmail_config, LLMConfig())
 
     assert result[0].sender_tier == "llm_flagged"
 
@@ -148,27 +133,25 @@ def test_apply_sender_filter_llm_error_flags_fail_safe(monkeypatch):
 
     monkeypatch.setattr(llm, "complete", _boom)
 
-    config = _config()
+    gmail_config = GmailConfig()
     emails = [_email("stranger@nowhere.com")]
 
-    result = _sender_filter.apply_sender_filter(emails, config)
+    result = _sender_filter.apply_sender_filter(emails, gmail_config, LLMConfig())
 
     assert result[0].sender_tier == "llm_flagged"
 
 
 def test_apply_sender_filter_cap_enforced(monkeypatch):
     calls = []
-    monkeypatch.setattr(
-        llm, "complete", lambda *a, **k: calls.append(1) or "yes"
-    )
+    monkeypatch.setattr(llm, "complete", lambda *a, **k: calls.append(1) or "yes")
 
-    config = _config(max_unknown_sender_llm_calls=1)
+    gmail_config = GmailConfig(max_unknown_sender_llm_calls=1)
     emails = [
         _email("first@nowhere.com", id="m1"),
         _email("second@nowhere.com", id="m2"),
     ]
 
-    result = _sender_filter.apply_sender_filter(emails, config)
+    result = _sender_filter.apply_sender_filter(emails, gmail_config, LLMConfig())
 
     assert len(calls) == 1
     tiers = {e.id: e.sender_tier for e in result}
@@ -179,14 +162,14 @@ def test_apply_sender_filter_cap_enforced(monkeypatch):
 def test_apply_sender_filter_never_drops_emails(monkeypatch):
     monkeypatch.setattr(llm, "complete", lambda *a, **k: "yes")
 
-    config = _config(max_unknown_sender_llm_calls=0)
+    gmail_config = GmailConfig(max_unknown_sender_llm_calls=0)
     emails = [
         _email("a@nowhere.com", id="m1"),
         _email("b@nowhere.com", id="m2"),
         _email("c@nowhere.com", id="m3"),
     ]
 
-    result = _sender_filter.apply_sender_filter(emails, config)
+    result = _sender_filter.apply_sender_filter(emails, gmail_config, LLMConfig())
 
     assert len(result) == len(emails)
     assert {e.sender_tier for e in result} == {"unchecked"}
@@ -195,13 +178,13 @@ def test_apply_sender_filter_never_drops_emails(monkeypatch):
 def test_apply_sender_filter_preserves_email_order(monkeypatch):
     monkeypatch.setattr(llm, "complete", lambda *a, **k: "yes")
 
-    config = _config(allowlist=["a@x.com"], trusted_domains=["y.com"])
+    gmail_config = GmailConfig(allowlist=["a@x.com"], trusted_domains=["y.com"])
     emails = [
         _email("a@x.com", id="m1"),
         _email("b@y.com", id="m2"),
         _email("c@nowhere.com", id="m3"),
     ]
 
-    result = _sender_filter.apply_sender_filter(emails, config)
+    result = _sender_filter.apply_sender_filter(emails, gmail_config, LLMConfig())
 
     assert [e.id for e in result] == ["m1", "m2", "m3"]

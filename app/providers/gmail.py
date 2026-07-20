@@ -10,7 +10,8 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from app.auth import CredentialsError, load_google_credentials
-from app.config.loader import GmailConfig
+from app.config.loader import GmailConfig, LLMConfig
+from app.providers._internal._sender_filter import apply_sender_filter
 from app.providers._internal.sanitize import sanitize_message
 from app.schemas.email import RawEmail
 
@@ -45,8 +46,8 @@ class GmailClient:
             for mid in ids
         ]
 
-    def fetch_emails(self) -> tuple[list[RawEmail], str | None]:
-        """Fetch and sanitize email. Returns (emails, error_or_None)."""
+    def fetch_emails(self, llm_config: LLMConfig) -> tuple[list[RawEmail], str | None]:
+        """Fetch, sanitize, and sender-tier-tag email. Returns (emails, error)."""
         try:
             raw = self.fetch_raw()
         except (CredentialsError, RefreshError, HttpError, OSError) as exc:
@@ -71,4 +72,5 @@ class GmailClient:
             log.warning("gmail.all_messages_failed", count=len(raw))
             return [], error
 
+        emails = apply_sender_filter(emails, self._config, llm_config)
         return emails, None
