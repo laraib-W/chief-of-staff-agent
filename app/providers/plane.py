@@ -132,7 +132,7 @@ class PlaneClient:
         order_by:   sort field, e.g. "-created_at" for newest-first.
         stop_early: called after each page; return True to stop pagination.
         """
-        params: dict[str, Any] = {"expand": "state_detail,assignee_details"}
+        params: dict[str, Any] = {}
         if order_by:
             params["order_by"] = order_by
         return self._get(
