@@ -1,0 +1,15 @@
+[
+  {
+    "id": "fix-1",
+    "threadId": "fix-t1",
+    "internalDate": "1752652800000",
+    "payload": {
+      "mimeType": "text/html",
+      "headers": [
+        {"name": "From", "value": "Carol <carol@example.com>"},
+        {"name": "Subject", "value": "Fixture subject"}
+      ],
+      "body": {"data": "PGgxPkhlbGxvIHRlYW08L2gxPg=="}
+    }
+  }
+]

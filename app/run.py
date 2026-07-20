@@ -36,7 +36,7 @@ def main() -> None:
     run_id = runs_store.start_run(paths["runs"], config.config_hash)
 
     with checkpointer(paths["checkpoints"]) as saver:
-        graph = build_graph(checkpointer=saver)
+        graph = build_graph(config, checkpointer=saver)
         final_state = graph.invoke(
             {"errors": {}},
             config={"configurable": {"thread_id": str(run_id)}},

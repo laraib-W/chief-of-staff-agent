@@ -1,8 +1,41 @@
 """Shared pytest fixtures for all test tiers."""
 
+import json
+from pathlib import Path
+
 import keyring
 import keyring.backend
 import pytest
+
+from app.config.loader import (
+    Config,
+    GmailConfig,
+    IdentityConfig,
+    LLMConfig,
+    PlaneConfig,
+    ThresholdsConfig,
+)
+
+FIXTURE_DIR = Path(__file__).parent / "fixtures"
+
+
+def make_config(**overrides) -> Config:
+    defaults = {
+        "identity": IdentityConfig(
+            user_name="T", timezone="UTC", delivery_address="t@x.com"
+        ),
+        "gmail": GmailConfig(),
+        "plane": PlaneConfig(project_ids=["p1"]),
+        "thresholds": ThresholdsConfig(),
+        "llm": LLMConfig(),
+        "config_hash": "deadbeef",
+    }
+    defaults.update(overrides)
+    return Config(**defaults)
+
+
+def load_gmail_fixture(name: str = "gmail_sample") -> list[dict]:
+    return json.loads((FIXTURE_DIR / f"{name}.json").read_text())
 
 
 class _MemoryKeyring(keyring.backend.KeyringBackend):

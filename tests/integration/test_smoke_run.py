@@ -1,12 +1,17 @@
 """End-to-end smoke tests for python -m app.run (specs.md §8).
 
-Phase 0 acceptance criteria:
-- --dry-run completes in under 10 s on the empty pipeline.
-- A row is inserted into runs.db.runs with finished_at set and errors = '{}';
-- memory.db.digest_log is NOT written (no delivery node exists in Phase 0).
+Acceptance criteria:
+- --dry-run completes in under 10 s.
+- A row is inserted into runs.db.runs with finished_at set and an errors JSON
+  object that reports each wired sensor's status (specs.md §3.1.1) — gmail is
+  the first real sensor, so errors["gmail"] is always present: None on
+  success, an error string on failure. Either is fine here; the point is the
+  run completes via graceful degradation rather than crashing.
+- memory.db.digest_log is NOT written (no delivery node exists yet).
 - Both conditions hold with and without --replay.
 """
 
+import json
 import subprocess
 import sys
 import time
@@ -86,7 +91,8 @@ def test_dry_run_smoke_completes_end_to_end(tmp_path, extra_args):
 
     assert row is not None, "no row written to runs.db.runs"
     assert row["finished_at"] is not None, "finished_at is NULL — run did not complete"
-    assert row["errors"] == "{}", f"unexpected errors in run: {row['errors']}"
+    errors = json.loads(row["errors"])
+    assert "gmail" in errors, f"expected gmail sensor status in errors: {errors}"
 
     memory_db = data_dir / "memory.db"
     assert memory_db.exists(), "memory.db was not created"
