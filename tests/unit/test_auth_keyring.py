@@ -1,6 +1,5 @@
 """Unit tests for app.auth.keyring_store."""
 
-import keyring.backends.fail
 import pytest
 
 from app.auth.google import CredentialsError
