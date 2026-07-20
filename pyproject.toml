@@ -71,3 +71,8 @@ markers = [
     "replay: run against recorded fixtures",
     "evaluation: quality evaluation against golden sets",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

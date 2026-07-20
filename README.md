@@ -76,6 +76,15 @@ python -m app.auth --setup
 Opens a browser, you consent, the refresh token is stored in the OS keyring.
 Never touches disk.
 
+> **Note:** The OAuth client in Google Cloud Console must be of type **Desktop app**
+> so the local-server redirect works.
+
+To rotate the token later (e.g. after revoking access):
+
+```bash
+python -m app.auth --reauth
+```
+
 ### 4. Configure
 
 ```bash
@@ -134,6 +143,8 @@ Point your OS scheduler at `python -m app.run` at your configured `run_time`.
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Branching, PR checklist, testing conventions.            |
 | [docs/roadmap.md](docs/roadmap.md) | Build phases 0–4 with deliverables and exit criteria.    |
 ## Status
+
+![CI](https://github.com/laraib-W/chief-of-staff-agent/actions/workflows/ci.yml/badge.svg)
 
 Pre-release — Phase 0 scaffold in progress. See [docs/roadmap.md](docs/roadmap.md)
 for the build phases and [EVALUATION.md](EVALUATION.md) for the exit criteria
