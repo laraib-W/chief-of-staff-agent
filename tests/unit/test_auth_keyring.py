@@ -1,5 +1,6 @@
 """Unit tests for app.auth.keyring_store."""
 
+import keyring.backends.fail
 import pytest
 
 from app.auth.google import CredentialsError
@@ -46,27 +47,14 @@ def test_clear_is_idempotent(in_memory_keyring):
 def test_ensure_backend_available_passes_for_memory_keyring(in_memory_keyring):
     from app.auth.keyring_store import ensure_backend_available
 
-    ensure_backend_available()  # _MemoryKeyring name doesn't contain 'fail'/'null'
+    ensure_backend_available()  # _MemoryKeyring is not a fail/null backend
 
 
 @pytest.mark.unit
 def test_ensure_backend_raises_for_fail_backend(monkeypatch):
     import keyring
 
-    class _FakeFailKeyring(keyring.backend.KeyringBackend):
-        # Class name contains "fail" so ensure_backend_available detects it.
-        priority = 0
-
-        def set_password(self, _service, _username, _password):
-            pass
-
-        def get_password(self, _service, _username):
-            return None
-
-        def delete_password(self, _service, _username):
-            pass
-
-    monkeypatch.setattr(keyring, "get_keyring", lambda: _FakeFailKeyring())
+    monkeypatch.setattr(keyring, "get_keyring", lambda: keyring.backends.fail.Keyring())
 
     from app.auth.keyring_store import ensure_backend_available
 

@@ -24,7 +24,9 @@ def ensure_backend_available() -> None:
     from app.auth.google import CredentialsError
 
     backend = keyring.get_keyring()
-    if isinstance(backend, (keyring.backends.fail.Keyring, keyring.backends.null.Keyring)):
+    if isinstance(
+        backend, (keyring.backends.fail.Keyring, keyring.backends.null.Keyring)
+    ):
         raise CredentialsError(
             "No OS keyring backend is available "
             f"(backend detected: {type(backend).__name__}). "
