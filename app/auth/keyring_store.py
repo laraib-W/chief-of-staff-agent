@@ -6,6 +6,8 @@ coordinates are used.
 """
 
 import keyring
+import keyring.backends.fail
+import keyring.backends.null
 import keyring.errors
 
 from app.auth.constants import KEYRING_SERVICE, KEYRING_USERNAME
@@ -22,8 +24,7 @@ def ensure_backend_available() -> None:
     from app.auth.google import CredentialsError
 
     backend = keyring.get_keyring()
-    backend_name = type(backend).__name__.lower()
-    if "fail" in backend_name or "null" in backend_name:
+    if isinstance(backend, (keyring.backends.fail.Keyring, keyring.backends.null.Keyring)):
         raise CredentialsError(
             "No OS keyring backend is available "
             f"(backend detected: {type(backend).__name__}). "
