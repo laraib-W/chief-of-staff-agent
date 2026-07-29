@@ -5,10 +5,11 @@ from datetime import UTC, datetime
 from app.graph.workflow import build_graph
 from app.providers import gmail
 from app.schemas.email import RawEmail
+from app.storage import memory as memory_store
 from tests.conftest import make_config
 
 
-def test_graph_invoke_runs_fetch_emails_node(monkeypatch):
+def test_graph_invoke_runs_fetch_emails_node(monkeypatch, tmp_path):
     fake_email = RawEmail(
         id="m1",
         thread_id="t1",
@@ -21,8 +22,14 @@ def test_graph_invoke_runs_fetch_emails_node(monkeypatch):
         gmail.GmailClient, "fetch_emails", lambda self: ([fake_email], None)
     )
 
+    memory_path = tmp_path / "memory.db"
+    memory_store.bootstrap(memory_path)
+
     graph = build_graph(make_config())
-    final_state = graph.invoke({"errors": {}})
+    final_state = graph.invoke(
+        {"errors": {}},
+        config={"configurable": {"memory_db_path": memory_path}},
+    )
 
     assert final_state["emails"] == [fake_email]
     assert final_state["errors"]["gmail"] is None

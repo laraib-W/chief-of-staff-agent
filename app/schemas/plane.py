@@ -16,8 +16,12 @@ class PlaneIssue(BaseModel):
     state_group: (
         StateGroup | str
     )  # Literal covers standard Plane groups; str allows custom workspaces
-    assignee_id: str | None
-    assignee_display_name: str | None
+    # Every assignee attached to the issue. Empty list = unassigned.
+    # Parallel to assignee_display_names by index. assess_team fans the
+    # issue across all assignees so co-assigned work is counted for each
+    # person carrying it.
+    assignee_ids: list[str]
+    assignee_display_names: list[str]
     due_date: date | None
     created_at: datetime
     updated_at: datetime
@@ -27,5 +31,33 @@ class PlaneIssue(BaseModel):
     is_overdue: bool  # due_date < today and state_group not in completed/cancelled
 
 
+PersonStatus = Literal["attention", "watch", "on_track"]
+
+
+class IssueRef(BaseModel):
+    """Compact reference to a PlaneIssue for use inside PersonHealth."""
+
+    issue_id: str  # human-readable, e.g. "PROJ-142"
+    title: str
+    due_date: date | None = None
+    age_in_state_days: int = 0
+    days_stuck: int | None = None  # populated from issue_stuck_since memory
+
+
 class PersonHealth(BaseModel):
-    """Per-person team health card. Fields land in the assess_team ticket."""
+    """Per-person team health card (specs.md §3.2.3).
+
+    Numbers are always deterministic. ``summary`` is the LLM-generated
+    one-liner (or a deterministic fallback when the LLM path fails).
+    """
+
+    person: str  # display_name
+    person_id: str  # Plane assignee_id (UUID)
+    status: PersonStatus
+    in_progress_count: int
+    overdue_items: list[IssueRef]
+    inactive_items: list[IssueRef]
+    on_time_rate: float | None  # None when no due-dated completions in window
+    completions_no_due_date: int
+    last_activity: datetime | None
+    summary: str

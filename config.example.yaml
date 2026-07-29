@@ -25,6 +25,16 @@ plane:
     - "proj-abc-123"
   ignore_list: []
   rolling_window_days: 7
+  # Optional: remap state names to a different Plane state group when the
+  # workspace admin has miscategorized states. Values must be one of
+  # backlog / unstarted / started / completed / cancelled. States not
+  # listed keep whatever group Plane returns. Run `python -m app.auth
+  # --list-states` to see the current classification for every state.
+  state_group_overrides: {}
+  # state_group_overrides:
+  #   "Ready for test": started
+  #   "Ready": unstarted
+  #   "Needs Info": started
 
 thresholds:
   inactivity_days: 4
@@ -33,6 +43,12 @@ thresholds:
   due_soon_horizon_days: 7
 
 llm:
+  # provider selects the backend SDK. Set the matching API key in .env
+  # (ANTHROPIC_API_KEY for anthropic, GEMINI_API_KEY for gemini).
+  provider: "anthropic"                  # one of: anthropic, gemini
+  # model must be valid for the chosen provider, e.g.:
+  #   anthropic: claude-sonnet-4-6, claude-opus-4-7, claude-haiku-4-5
+  #   gemini:    gemini-2.5-flash, gemini-2.5-pro
   model: "claude-sonnet-4-6"
   max_tokens_per_node: 4096
   batch_mode: true                       # false = per-item calls
