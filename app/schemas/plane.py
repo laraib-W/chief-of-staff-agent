@@ -33,6 +33,14 @@ class PlaneIssue(BaseModel):
 
 PersonStatus = Literal["attention", "watch", "on_track"]
 
+# Urgency ordering: lower value = higher urgency. Use for sorting team-health
+# cards so "attention" surfaces first, "on_track" last.
+PERSON_STATUS_ORDER: dict[PersonStatus, int] = {
+    "attention": 0,
+    "watch": 1,
+    "on_track": 2,
+}
+
 
 class IssueRef(BaseModel):
     """Compact reference to a PlaneIssue for use inside PersonHealth."""

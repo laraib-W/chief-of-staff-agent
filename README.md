@@ -78,8 +78,9 @@ python -m app.auth --setup
 Opens a browser, you consent, the refresh token is stored in the OS keyring.
 Never touches disk.
 
-> **Note:** The OAuth client in Google Cloud Console must be of type **Desktop app**
-> so the local-server redirect works.
+> **First time?** See [docs/google-oauth-setup.md](docs/google-oauth-setup.md)
+> for the Google Cloud Console click-through (enabling APIs, creating a
+> **Desktop app** OAuth client, adding yourself as a test user).
 
 To rotate the token later (e.g. after revoking access):
 

@@ -6,18 +6,27 @@ work lands as each Phase 1+ ticket replaces the placeholder node in
 ``app.graph.workflow``.
 """
 
-import argparse
-from pathlib import Path
+# Bootstrap order matters: load .env first so COS_FORCE_IPV4 (and future
+# env-driven toggles) can live in .env alongside secrets; then import
+# app.net_compat so its side-effect patch fires before any HTTP library
+# resolves a hostname. isort/ruff would otherwise reorder these.
+from dotenv import load_dotenv  # isort: skip
 
-from app.config.loader import load_config
-from app.graph.workflow import build_graph
-from app.logging_config import configure_logging
-from app.storage import memory as memory_store
-from app.storage import resolve_paths
-from app.storage import runs as runs_store
-from app.storage.checkpoint import checkpointer
+load_dotenv()
 
-_STATUS_ORDER = {"attention": 0, "watch": 1, "on_track": 2}
+import app.net_compat  # noqa: F401, E402  # isort: skip  # pyright: ignore[reportUnusedImport]
+
+import argparse  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from app.config.loader import load_config  # noqa: E402
+from app.graph.workflow import build_graph  # noqa: E402
+from app.logging_config import configure_logging  # noqa: E402
+from app.schemas.plane import PERSON_STATUS_ORDER  # noqa: E402
+from app.storage import memory as memory_store  # noqa: E402
+from app.storage import resolve_paths  # noqa: E402
+from app.storage import runs as runs_store  # noqa: E402
+from app.storage.checkpoint import checkpointer  # noqa: E402
 
 
 def main() -> None:
@@ -75,9 +84,13 @@ def _print_dry_run(final_state) -> None:
     issues = final_state.get("plane_issues", [])
     team_health = final_state.get("team_health", [])
     priorities = final_state.get("top_priorities", [])
+    emails = final_state.get("emails", [])
+    calendar_events = final_state.get("calendar_events", [])
     errors = final_state.get("errors", {})
 
     _print_priorities(priorities)
+    _print_emails(emails)
+    _print_calendar(calendar_events)
     _print_per_person(issues)
     _print_errors(errors)
     _print_team_health(team_health)
@@ -109,7 +122,7 @@ def _print_team_health(team_health) -> None:
         return
     cards = sorted(
         team_health,
-        key=lambda c: (_STATUS_ORDER.get(c.status, 99), -c.in_progress_count),
+        key=lambda c: (PERSON_STATUS_ORDER.get(c.status, 99), -c.in_progress_count),
     )
     current_tier: str | None = None
     for card in cards:
@@ -149,6 +162,53 @@ def _print_per_person(issues) -> None:
     for name in sorted(per_person):
         breakdown = ", ".join(f"{g}={n}" for g, n in sorted(per_person[name].items()))
         print(f"  {name:<22}  {breakdown}")
+
+
+def _print_emails(emails) -> None:
+    _section("EMAILS", len(emails))
+    if not emails:
+        print("  (none)")
+        return
+    for e in sorted(emails, key=lambda x: x.date, reverse=True):
+        when = e.date.strftime("%Y-%m-%d %H:%M")
+        subject = e.subject or "(no subject)"
+        print(f"  [{when}]  {e.sender}")
+        print(f"      {subject}")
+
+
+def _print_calendar(events) -> None:
+    _section("CALENDAR", len(events))
+    if not events:
+        print("  (none)")
+        return
+    by_scope: dict[str, list] = {"today": [], "lookahead": []}
+    for ev in events:
+        by_scope.setdefault(ev.scope, []).append(ev)
+    for scope in ("today", "lookahead"):
+        scope_events = sorted(by_scope.get(scope, []), key=lambda x: x.start)
+        if not scope_events:
+            continue
+        print(f"\n  --- {scope.upper()} ---")
+        for ev in scope_events:
+            if ev.all_day:
+                when = ev.start.strftime("%Y-%m-%d (all-day)")
+            else:
+                when = (
+                    f"{ev.start.strftime('%Y-%m-%d %H:%M')}–{ev.end.strftime('%H:%M')}"
+                )
+            flags = []
+            if ev.is_pending_invite:
+                flags.append("pending")
+            if ev.response_status and ev.response_status != "accepted":
+                flags.append(ev.response_status)
+            flag_str = f"  [{', '.join(flags)}]" if flags else ""
+            print(f"  {when}  {ev.summary}{flag_str}")
+            if ev.attendees:
+                shown = ", ".join(ev.attendees[:3])
+                more = "..." if len(ev.attendees) > 3 else ""
+                print(f"      attendees: {len(ev.attendees)} ({shown}{more})")
+            if scope == "today" and ev.location:
+                print(f"      location: {ev.location}")
 
 
 def _print_errors(errors) -> None:
