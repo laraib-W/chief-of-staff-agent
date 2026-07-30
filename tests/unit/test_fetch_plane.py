@@ -3,15 +3,27 @@
 import io
 import sys
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.auth.__main__ import main
 from app.auth.plane import PlaneAuthError, read_plane_token_from_env
-from app.nodes.fetch_plane import fetch_plane
+from app.nodes.fetch_plane import fetch_plane_node
 from app.providers.plane import PlaneAPIError
 from app.schemas.plane import PlaneIssue
+
+
+def _iso_days_ago(days: int) -> str:
+    """Return an ISO 8601 UTC timestamp N days before the test's 'now'.
+
+    Time-relative so the rolling-window guard (default 7 days) treats these
+    fixtures the same on any run date. Hard-coded dates in these tests
+    silently expired as the calendar moved past them.
+    """
+    return (datetime.now(tz=UTC) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -47,8 +59,7 @@ def _make_raw_issue(
     name: str = "Fix bug",
     state_group: str = "started",
     state_name: str = "In Progress",
-    assignee_id: str = "user-1",
-    assignee_name: str = "Alice",
+    assignees: list[str] | None = None,
     due_date: str | None = None,
     completed_at: str | None = None,
     state_updated_at: str = "2026-07-15T00:00:00Z",
@@ -56,14 +67,15 @@ def _make_raw_issue(
     """Build a raw issue dict matching the actual Plane v1 API response shape.
 
     The API never expands state_detail or assignee_details; it returns a state
-    UUID and a list of assignee UUIDs instead.
+    UUID and a list of assignee UUIDs instead. ``assignees`` defaults to
+    ``["user-1"]`` (Alice) — pass multiple UUIDs to test co-assigned issues.
     """
     return {
         "id": f"uuid-{sequence_id}",
         "sequence_id": sequence_id,
         "name": name,
         "state": _STATE_UUID.get(state_group, _STATE_UUID["started"]),
-        "assignees": [assignee_id] if assignee_id else [],
+        "assignees": assignees if assignees is not None else ["user-1"],
         "target_date": due_date,
         "created_at": "2026-07-01T00:00:00Z",
         "updated_at": "2026-07-15T00:00:00Z",
@@ -76,6 +88,7 @@ def _make_config(
     project_ids: list[str] | None = None,
     ignore_list: list[str] | None = None,
     rolling_window_days: int = 7,
+    state_group_overrides: dict[str, str] | None = None,
 ) -> MagicMock:
     cfg = MagicMock()
     cfg.plane.base_url = "https://api.plane.so"
@@ -83,6 +96,7 @@ def _make_config(
     cfg.plane.project_ids = project_ids or [_DEFAULT_PROJECT_ID]
     cfg.plane.ignore_list = ignore_list or []
     cfg.plane.rolling_window_days = rolling_window_days
+    cfg.plane.state_group_overrides = state_group_overrides or {}
     return cfg
 
 
@@ -110,10 +124,6 @@ def _make_mock_client(
     mock.list_modules.return_value = []
     mock.list_module_issues.return_value = []
     return mock
-
-
-def _langgraph_config(agent_config: MagicMock) -> dict:
-    return {"configurable": {"thread_id": "test", "agent_config": agent_config}}
 
 
 def _run_cli(args: list[str], monkeypatch) -> tuple[int, str, str]:
@@ -193,7 +203,7 @@ def test_happy_path_returns_issues(monkeypatch):
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
     monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
 
-    result = fetch_plane({"errors": {}}, _langgraph_config(_make_config()))
+    result = fetch_plane_node(_make_config())({"errors": {}})
 
     assert "plane_issues" in result
     assert len(result["plane_issues"]) == 2
@@ -209,7 +219,7 @@ def test_happy_path_uses_api_identifier(monkeypatch):
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
     monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
 
-    result = fetch_plane({"errors": {}}, _langgraph_config(_make_config()))
+    result = fetch_plane_node(_make_config())({"errors": {}})
 
     assert result["plane_issues"][0].issue_id == f"{_DEFAULT_IDENTIFIER}-7"
 
@@ -222,7 +232,7 @@ def test_unknown_project_id_falls_back_to_uuid_with_warning(monkeypatch, capsys)
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
     monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
 
-    result = fetch_plane({"errors": {}}, _langgraph_config(_make_config()))
+    result = fetch_plane_node(_make_config())({"errors": {}})
 
     assert result["plane_issues"][0].issue_id == f"{_DEFAULT_PROJECT_ID}-1"
     # structlog writes to stdout; verify the warning event was emitted
@@ -234,7 +244,7 @@ def test_token_failure_writes_error_and_returns_empty(monkeypatch):
     """PlaneAuthError from the auth layer maps to errors['plane'] and an empty list."""
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", _raise_plane_auth_error)
 
-    result = fetch_plane({"errors": {}}, _langgraph_config(_make_config()))
+    result = fetch_plane_node(_make_config())({"errors": {}})
 
     assert result["plane_issues"] == []
     assert "PLANE_API_TOKEN" in result["errors"]["plane"]
@@ -249,7 +259,7 @@ def test_workspace_slug_empty_skips_silently(monkeypatch):
 
     cfg = _make_config()
     cfg.plane.workspace_slug = ""
-    result = fetch_plane({"errors": {}}, _langgraph_config(cfg))
+    result = fetch_plane_node(cfg)({"errors": {}})
 
     assert result == {"plane_issues": []}
     mock_client.list_projects.assert_not_called()
@@ -263,31 +273,99 @@ def test_empty_project_returns_empty_list(monkeypatch):
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
     monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
 
-    result = fetch_plane({"errors": {}}, _langgraph_config(_make_config()))
+    result = fetch_plane_node(_make_config())({"errors": {}})
 
     assert result["plane_issues"] == []
     assert result.get("errors", {}).get("plane") is None
 
 
 @pytest.mark.unit
-def test_ignore_list_excludes_assignee(monkeypatch):
-    """Issues belonging to an ignored assignee are dropped from the output."""
+def test_ignore_list_excludes_single_assignee(monkeypatch):
+    """A single-assignee issue disappears when that assignee is ignored."""
     mock_client = _make_mock_client(
         [
-            _make_raw_issue(1, "Task A", assignee_id="user-1", assignee_name="Alice"),
-            _make_raw_issue(2, "Task B", assignee_id="user-2", assignee_name="Bob"),
+            _make_raw_issue(1, "Task A", assignees=["user-1"]),
+            _make_raw_issue(2, "Task B", assignees=["user-2"]),
         ]
     )
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
     monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
 
-    result = fetch_plane(
-        {"errors": {}}, _langgraph_config(_make_config(ignore_list=["Bob"]))
-    )
+    result = fetch_plane_node(_make_config(ignore_list=["Bob"]))({"errors": {}})
 
     titles = [i.title for i in result["plane_issues"]]
     assert "Task A" in titles
     assert "Task B" not in titles
+
+
+@pytest.mark.unit
+def test_ignore_list_strips_only_ignored_coassignee(monkeypatch):
+    """A co-assigned issue survives — only the ignored assignee is stripped."""
+    mock_client = _make_mock_client(
+        [
+            _make_raw_issue(1, "Shared task", assignees=["user-1", "user-2"]),
+        ]
+    )
+    monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
+    monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
+
+    result = fetch_plane_node(_make_config(ignore_list=["Bob"]))({"errors": {}})
+
+    assert len(result["plane_issues"]) == 1
+    issue = result["plane_issues"][0]
+    assert issue.assignee_ids == ["user-1"]
+    assert issue.assignee_display_names == ["Alice"]
+
+
+@pytest.mark.unit
+def test_ignore_list_drops_issue_when_every_assignee_ignored(monkeypatch):
+    """When every assignee is on the ignore list, the whole issue is dropped."""
+    mock_client = _make_mock_client(
+        [
+            _make_raw_issue(1, "All ignored", assignees=["user-2"]),
+        ]
+    )
+    monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
+    monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
+
+    result = fetch_plane_node(_make_config(ignore_list=["Bob"]))({"errors": {}})
+
+    assert result["plane_issues"] == []
+
+
+@pytest.mark.unit
+def test_unassigned_issue_is_dropped(monkeypatch):
+    """Issues with no assignees have no one to attribute work to."""
+    mock_client = _make_mock_client(
+        [
+            _make_raw_issue(1, "Orphan", assignees=[]),
+        ]
+    )
+    monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
+    monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
+
+    result = fetch_plane_node(_make_config())({"errors": {}})
+
+    assert result["plane_issues"] == []
+
+
+@pytest.mark.unit
+def test_multiple_assignees_are_preserved(monkeypatch):
+    """A co-assigned issue lands with both assignees on the mapped PlaneIssue."""
+    mock_client = _make_mock_client(
+        [
+            _make_raw_issue(1, "Pair work", assignees=["user-1", "user-2"]),
+        ]
+    )
+    monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
+    monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
+
+    result = fetch_plane_node(_make_config())({"errors": {}})
+
+    assert len(result["plane_issues"]) == 1
+    issue = result["plane_issues"][0]
+    assert issue.assignee_ids == ["user-1", "user-2"]
+    assert issue.assignee_display_names == ["Alice", "Bob"]
 
 
 @pytest.mark.unit
@@ -308,14 +386,14 @@ def test_overdue_flag_set_correctly(monkeypatch):
                 "Done task",
                 due_date="2020-01-01",
                 state_group="completed",
-                completed_at="2026-07-19T00:00:00Z",
+                completed_at=_iso_days_ago(1),
             ),
         ],
     )
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
     monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
 
-    result = fetch_plane({"errors": {}}, _langgraph_config(_make_config()))
+    result = fetch_plane_node(_make_config())({"errors": {}})
 
     by_title = {i.title: i for i in result["plane_issues"]}
     assert by_title["Overdue task"].is_overdue is True
@@ -342,7 +420,7 @@ def test_rolling_window_excludes_completed_with_no_timestamp(monkeypatch):
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
     monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
 
-    result = fetch_plane({"errors": {}}, _langgraph_config(_make_config()))
+    result = fetch_plane_node(_make_config())({"errors": {}})
 
     titles = {i.title for i in result["plane_issues"]}
     assert "Active" in titles
@@ -368,7 +446,7 @@ def test_rolling_window_excludes_old_completed(monkeypatch):
                 1,
                 "Recent done",
                 state_group="completed",
-                completed_at="2026-07-19T00:00:00Z",
+                completed_at=_iso_days_ago(1),
             ),
             _make_raw_issue(
                 2,
@@ -387,15 +465,62 @@ def test_rolling_window_excludes_old_completed(monkeypatch):
     monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
     monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
 
-    result = fetch_plane(
-        {"errors": {}}, _langgraph_config(_make_config(rolling_window_days=7))
-    )
+    result = fetch_plane_node(_make_config(rolling_window_days=7))({"errors": {}})
 
     titles = {i.title for i in result["plane_issues"]}
     assert "Recent done" in titles
     assert "Active issue" in titles
     assert "Old done" not in titles
     assert "Old cancelled" not in titles
+
+
+# ---------------------------------------------------------------------------
+# state_group_overrides tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_state_group_override_remaps_group(monkeypatch):
+    """A state name in overrides gets its group swapped end-to-end."""
+    mock_client = _make_mock_client(
+        [_make_raw_issue(1, "Waiting for QA", state_group="backlog")]
+    )
+    monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
+    monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
+
+    node = fetch_plane_node(_make_config(state_group_overrides={"Backlog": "started"}))
+    result = node({"errors": {}})
+
+    (issue,) = result["plane_issues"]
+    assert issue.state_name == "Backlog"
+    assert issue.state_group == "started"
+
+
+@pytest.mark.unit
+def test_state_group_no_override_keeps_plane_group(monkeypatch):
+    """States not in overrides keep Plane's original group verbatim."""
+    mock_client = _make_mock_client([_make_raw_issue(1, "T", state_group="started")])
+    monkeypatch.setattr(f"{_NODE}.read_plane_token_from_env", lambda: "tok")
+    monkeypatch.setattr(f"{_NODE}.PlaneClient", lambda **_: mock_client)
+
+    node = fetch_plane_node(
+        _make_config(state_group_overrides={"Nonexistent": "backlog"})
+    )
+    result = node({"errors": {}})
+
+    (issue,) = result["plane_issues"]
+    assert issue.state_group == "started"
+
+
+@pytest.mark.unit
+def test_state_group_override_rejects_invalid_group_value():
+    """Config load fails if an override maps to a value outside the five groups."""
+    from pydantic import ValidationError
+
+    from app.config.loader import PlaneConfig
+
+    with pytest.raises(ValidationError):
+        PlaneConfig(project_ids=["p1"], state_group_overrides={"Ready": "in-progress"})
 
 
 # ---------------------------------------------------------------------------

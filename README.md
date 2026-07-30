@@ -61,7 +61,8 @@ uv run pre-commit install
 cp .env.example .env
 # fill in:
 #   PLANE_API_TOKEN          - from Plane → Settings → API Tokens
-#   ANTHROPIC_API_KEY        - from https://console.anthropic.com
+#   ANTHROPIC_API_KEY        - from https://console.anthropic.com (if llm.provider=anthropic)
+#   GEMINI_API_KEY           - from https://aistudio.google.com/apikey (if llm.provider=gemini)
 #   GOOGLE_OAUTH_CLIENT_ID   - from Google Cloud Console → OAuth client
 #   GOOGLE_OAUTH_CLIENT_SECRET
 ```

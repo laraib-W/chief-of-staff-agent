@@ -8,6 +8,7 @@ sha256 of the raw YAML bytes — for the runs audit log (§5).
 
 import hashlib
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from dotenv import load_dotenv
@@ -32,12 +33,20 @@ class GmailConfig(_Strict):
     max_body_chars: int = 2000
 
 
+StateGroupLiteral = Literal["backlog", "unstarted", "started", "completed", "cancelled"]
+
+
 class PlaneConfig(_Strict):
     base_url: str = "https://api.plane.so"
     workspace_slug: str = ""  # validated at fetch time; empty = Plane not configured
     project_ids: list[str]
     ignore_list: list[str] = Field(default_factory=list)
     rolling_window_days: int = 7
+    # Per-workspace fix-up for miscategorized states. Keys are state names
+    # exactly as they appear in Plane (case-sensitive); values are one of
+    # the five Plane state groups. States not listed here keep whatever
+    # group Plane returns.
+    state_group_overrides: dict[str, StateGroupLiteral] = Field(default_factory=dict)
 
 
 class ThresholdsConfig(_Strict):
@@ -47,7 +56,12 @@ class ThresholdsConfig(_Strict):
     due_soon_horizon_days: int = 7
 
 
+LLMProviderLiteral = Literal["anthropic", "gemini"]
+
+
 class LLMConfig(_Strict):
+    # provider picks the backend SDK; model must be valid for that provider.
+    provider: LLMProviderLiteral = "anthropic"
     model: str = "claude-sonnet-4-6"
     max_tokens_per_node: int = 4096
     batch_mode: bool = True
