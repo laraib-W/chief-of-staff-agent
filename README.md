@@ -52,6 +52,7 @@ exits.
 
 ```bash
 uv sync
+uv run pre-commit install
 ```
 
 ### 2. Provision credentials
@@ -85,24 +86,48 @@ To rotate the token later (e.g. after revoking access):
 python -m app.auth --reauth
 ```
 
-### 4. Configure
+### 4. Configure Plane
+
+Generate a Plane API token at **Plane → Settings → API Tokens** and add it to `.env`:
+
+```
+PLANE_API_TOKEN=your-token-here
+```
+
+Then find your workspace slug (the short name in your Plane URL — `app.plane.so/<slug>/`) and look up your project IDs:
+
+```bash
+python -m app.auth --list-projects
+```
+
+This prints every project in your workspace with its name and ID:
+
+```
+Engineering                               a1b2c3d4-e5f6-...
+Design                                    b2c3d4e5-f6a7-...
+```
+
+Copy the IDs you want to track into `config.yaml`.
+
+### 5. Configure the agent
 
 ```bash
 cp config.example.yaml config.yaml
 # edit identity.delivery_address, timezone, run_time,
-# plane.project_ids, gmail.trusted_domains, thresholds
+# plane.workspace_slug, plane.project_ids,
+# gmail.trusted_domains, thresholds
 ```
 
 Every key is documented in [specs.md](specs.md) §6.3.
 
-### 5. Smoke test
+### 6. Smoke test
 
 ```bash
 python -m app.run --dry-run    # runs the full pipeline, skips email delivery
 python -m app.run --replay     # runs against recorded fixtures, offline
 ```
 
-### 6. Schedule the daily run
+### 7. Schedule the daily run
 
 Point your OS scheduler at `python -m app.run` at your configured `run_time`.
 

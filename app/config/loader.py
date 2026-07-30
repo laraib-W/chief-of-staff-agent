@@ -34,6 +34,7 @@ class GmailConfig(_Strict):
 
 class PlaneConfig(_Strict):
     base_url: str = "https://api.plane.so"
+    workspace_slug: str = ""  # validated at fetch time; empty = Plane not configured
     project_ids: list[str]
     ignore_list: list[str] = Field(default_factory=list)
     rolling_window_days: int = 7

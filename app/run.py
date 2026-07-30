@@ -39,7 +39,7 @@ def main() -> None:
         graph = build_graph(config, checkpointer=saver)
         final_state = graph.invoke(
             {"errors": {}},
-            config={"configurable": {"thread_id": str(run_id)}},
+            config={"configurable": {"thread_id": str(run_id), "agent_config": config}},
         )
 
     runs_store.finish_run(
@@ -51,6 +51,23 @@ def main() -> None:
     )
 
     print(f"run {run_id} ok (config_hash={config.config_hash[:12]})")
+
+    if args.dry_run:
+        issues = final_state.get("plane_issues", [])
+        errors = final_state.get("errors", {})
+        print(f"\n--- plane_issues ({len(issues)}) ---")
+        for issue in issues:
+            overdue = " [OVERDUE]" if issue.is_overdue else ""
+            module = f"[{issue.module_name}] " if issue.module_name else ""
+            print(
+                f"  {issue.issue_id}  {issue.state_name:<14}"
+                f"  {issue.assignee_display_name or '(unassigned)':<20}"
+                f"  {module}{issue.title}{overdue}"
+            )
+        if errors:
+            print("\n--- errors ---")
+            for key, msg in errors.items():
+                print(f"  {key}: {msg}")
 
 
 if __name__ == "__main__":

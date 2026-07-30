@@ -20,6 +20,7 @@ gmail:
 
 plane:
   base_url: "https://api.plane.so"       # or self-hosted URL
+  workspace_slug: "my-workspace"         # the slug in your Plane URL: app.plane.so/<slug>/
   project_ids:
     - "proj-abc-123"
   ignore_list: []

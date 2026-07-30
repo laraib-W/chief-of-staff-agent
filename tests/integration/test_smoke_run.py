@@ -33,6 +33,7 @@ gmail:
   fetch_window_hours: 24
 plane:
   base_url: "https://api.plane.so"
+  workspace_slug: ""
   project_ids: ["proj-smoke-test"]
 thresholds:
   inactivity_days: 4
