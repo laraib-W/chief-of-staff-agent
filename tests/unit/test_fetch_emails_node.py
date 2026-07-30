@@ -18,7 +18,7 @@ def test_fetch_emails_node_writes_emails_and_clears_error(monkeypatch):
         date=datetime.now(UTC),
     )
     monkeypatch.setattr(
-        gmail.GmailClient, "fetch_emails", lambda self: ([fake_email], None)
+        gmail.GmailClient, "fetch_emails", lambda self, llm_config: ([fake_email], None)
     )
 
     node = fetch_emails_node(make_config())
@@ -32,7 +32,7 @@ def test_fetch_emails_node_writes_error_and_empty_list_on_failure(monkeypatch):
     monkeypatch.setattr(
         gmail.GmailClient,
         "fetch_emails",
-        lambda self: ([], "Gmail fetch failed: boom"),
+        lambda self, llm_config: ([], "Gmail fetch failed: boom"),
     )
 
     node = fetch_emails_node(make_config())
@@ -43,7 +43,9 @@ def test_fetch_emails_node_writes_error_and_empty_list_on_failure(monkeypatch):
 
 
 def test_fetch_emails_node_preserves_other_error_keys(monkeypatch):
-    monkeypatch.setattr(gmail.GmailClient, "fetch_emails", lambda self: ([], None))
+    monkeypatch.setattr(
+        gmail.GmailClient, "fetch_emails", lambda self, llm_config: ([], None)
+    )
 
     node = fetch_emails_node(make_config())
     result = node({"errors": {"calendar": "calendar down"}})

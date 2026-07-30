@@ -18,7 +18,7 @@ def test_graph_invoke_runs_fetch_emails_node(monkeypatch):
         date=datetime.now(UTC),
     )
     monkeypatch.setattr(
-        gmail.GmailClient, "fetch_emails", lambda self: ([fake_email], None)
+        gmail.GmailClient, "fetch_emails", lambda self, llm_config: ([fake_email], None)
     )
 
     graph = build_graph(make_config())
