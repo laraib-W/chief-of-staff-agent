@@ -59,6 +59,10 @@ ignore = ["S101"]  # assert is fine in tests
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S", "PT011"]
+# app/run.py bootstraps load_dotenv() and app.net_compat before any HTTP
+# library is imported. That side-effect ordering intentionally puts
+# executable code before module-level imports, which E402 forbids.
+"app/run.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"

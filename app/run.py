@@ -9,24 +9,25 @@ work lands as each Phase 1+ ticket replaces the placeholder node in
 # Bootstrap order matters: load .env first so COS_FORCE_IPV4 (and future
 # env-driven toggles) can live in .env alongside secrets; then import
 # app.net_compat so its side-effect patch fires before any HTTP library
-# resolves a hostname. isort/ruff would otherwise reorder these.
+# resolves a hostname. isort:skip keeps ruff from reordering the two into
+# the alphabetical block; E402 is silenced for this file in pyproject.toml.
 from dotenv import load_dotenv  # isort: skip
 
 load_dotenv()
 
-import app.net_compat  # noqa: F401, E402  # isort: skip  # pyright: ignore[reportUnusedImport]
+import app.net_compat  # noqa: F401  # isort: skip  # pyright: ignore[reportUnusedImport]
 
-import argparse  # noqa: E402
-from pathlib import Path  # noqa: E402
+import argparse
+from pathlib import Path
 
-from app.config.loader import load_config  # noqa: E402
-from app.graph.workflow import build_graph  # noqa: E402
-from app.logging_config import configure_logging  # noqa: E402
-from app.schemas.plane import PERSON_STATUS_ORDER  # noqa: E402
-from app.storage import memory as memory_store  # noqa: E402
-from app.storage import resolve_paths  # noqa: E402
-from app.storage import runs as runs_store  # noqa: E402
-from app.storage.checkpoint import checkpointer  # noqa: E402
+from app.config.loader import load_config
+from app.graph.workflow import build_graph
+from app.logging_config import configure_logging
+from app.schemas.plane import PERSON_STATUS_ORDER
+from app.storage import memory as memory_store
+from app.storage import resolve_paths
+from app.storage import runs as runs_store
+from app.storage.checkpoint import checkpointer
 
 
 def main() -> None:
