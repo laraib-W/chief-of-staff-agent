@@ -97,6 +97,52 @@ def _cmd_list_projects(plane_cfg: PlaneConfig) -> None:
         print(f"{name:<40}  {project.get('id', '')}", file=sys.stdout)
 
 
+def _cmd_list_states(plane_cfg: PlaneConfig) -> None:
+    """Print every state and its group classification for each configured project.
+
+    The ``group`` value is Plane's authoritative classification (backlog /
+    unstarted / started / completed / cancelled) — it's what
+    ``assess_team`` uses to decide overdue, in-progress, and completed
+    buckets. Use this to debug mismatches between what a state is named
+    and how it's categorized.
+    """
+    if not plane_cfg.workspace_slug:
+        raise ValueError(
+            "plane.workspace_slug is not set in config.yaml. "
+            "Add it — it's the slug in your Plane URL: app.plane.so/<slug>/"
+        )
+    if not plane_cfg.project_ids:
+        raise ValueError("plane.project_ids is empty in config.yaml.")
+
+    token = read_plane_token_from_env()
+    client = PlaneClient(base_url=plane_cfg.base_url, api_token=token)
+
+    project_name_by_id = {
+        p["id"]: p.get("name", p["id"])
+        for p in client.list_projects(plane_cfg.workspace_slug)
+    }
+
+    for project_id in plane_cfg.project_ids:
+        project_name = project_name_by_id.get(project_id, project_id)
+        states = client.get_states(plane_cfg.workspace_slug, project_id)
+        print(f"\n=== {project_name} ({project_id}) ===", file=sys.stdout)
+        if not states:
+            print("  (no states)", file=sys.stdout)
+            continue
+        for state in states:
+            name = state.get("name", "(unnamed)")
+            plane_group = state.get("group", "(no group)")
+            override = plane_cfg.state_group_overrides.get(name)
+            if override is not None and override != plane_group:
+                print(
+                    f"  {name:<20}  group={override:<10}"
+                    f"  (plane={plane_group}, overridden)",
+                    file=sys.stdout,
+                )
+            else:
+                print(f"  {name:<20}  group={plane_group}", file=sys.stdout)
+
+
 def main() -> None:
     load_dotenv()
 
@@ -126,6 +172,11 @@ def main() -> None:
         action="store_true",
         help="List all Plane projects (name + ID) for the configured workspace.",
     )
+    group.add_argument(
+        "--list-states",
+        action="store_true",
+        help="List every state and its group for each configured project.",
+    )
     args = parser.parse_args()
 
     try:
@@ -133,9 +184,12 @@ def main() -> None:
             _cmd_setup()
         elif args.reauth:
             _cmd_reauth()
-        else:
+        elif args.list_projects:
             config = load_config(args.config)
             _cmd_list_projects(config.plane)
+        else:
+            config = load_config(args.config)
+            _cmd_list_states(config.plane)
     except CredentialsError as exc:
         log.error("auth_credentials_missing", reason=str(exc))
         print(f"Error: {exc}", file=sys.stderr)
