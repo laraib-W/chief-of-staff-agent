@@ -94,6 +94,7 @@ def test_dry_run_smoke_completes_end_to_end(tmp_path, extra_args):
     assert row["finished_at"] is not None, "finished_at is NULL — run did not complete"
     errors = json.loads(row["errors"])
     assert "gmail" in errors, f"expected gmail sensor status in errors: {errors}"
+    assert "calendar" in errors, f"expected calendar sensor status in errors: {errors}"
 
     memory_db = data_dir / "memory.db"
     assert memory_db.exists(), "memory.db was not created"

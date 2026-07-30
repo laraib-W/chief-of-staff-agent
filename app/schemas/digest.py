@@ -1,6 +1,7 @@
 """Priority schema and top-level AgentState TypedDict (specs.md §3.3.1, §4)."""
 
-from typing import Literal, TypedDict
+import operator
+from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel
 
@@ -40,5 +41,7 @@ class AgentState(TypedDict, total=False):
 
     top_priorities: list[Priority]
 
-    errors: dict[str, str | None]
+    # Multiple sensor nodes write their per-sensor status here in parallel;
+    # dict-union reducer lets LangGraph merge those writes without collision.
+    errors: Annotated[dict[str, str | None], operator.or_]
     digest_html: str
