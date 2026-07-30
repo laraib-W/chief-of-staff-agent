@@ -9,6 +9,7 @@ import keyring.backend
 import pytest
 
 from app.config.loader import (
+    CalendarConfig,
     Config,
     GmailConfig,
     IdentityConfig,
@@ -27,6 +28,7 @@ def make_config(**overrides) -> Config:
             user_name="T", timezone="UTC", delivery_address="t@x.com"
         ),
         "gmail": GmailConfig(),
+        "calendar": CalendarConfig(),
         "plane": PlaneConfig(project_ids=["p1"]),
         "thresholds": ThresholdsConfig(),
         "llm": LLMConfig(),

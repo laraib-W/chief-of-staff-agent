@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 
 from app.graph.workflow import build_graph
-from app.providers import gmail
+from app.providers import calendar, gmail
 from app.schemas.email import RawEmail
 from app.storage import memory as memory_store
 from tests.conftest import make_config
@@ -20,6 +20,9 @@ def test_graph_invoke_runs_fetch_emails_node(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         gmail.GmailClient, "fetch_emails", lambda self: ([fake_email], None)
+    )
+    monkeypatch.setattr(
+        calendar.CalendarClient, "fetch_events", lambda self: ([], None)
     )
 
     memory_path = tmp_path / "memory.db"

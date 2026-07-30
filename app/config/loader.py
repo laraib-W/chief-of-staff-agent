@@ -33,6 +33,10 @@ class GmailConfig(_Strict):
     max_body_chars: int = 2000
 
 
+class CalendarConfig(_Strict):
+    max_description_chars: int = 500
+
+
 StateGroupLiteral = Literal["backlog", "unstarted", "started", "completed", "cancelled"]
 
 
@@ -70,6 +74,7 @@ class LLMConfig(_Strict):
 class Config(_Strict):
     identity: IdentityConfig
     gmail: GmailConfig
+    calendar: CalendarConfig = Field(default_factory=CalendarConfig)
     plane: PlaneConfig
     thresholds: ThresholdsConfig
     llm: LLMConfig

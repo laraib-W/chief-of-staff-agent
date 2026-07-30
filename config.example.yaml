@@ -18,6 +18,9 @@ gmail:
   fetch_window_hours: 24
   max_body_chars: 2000                   # body length cap (SECURITY.md §3)
 
+calendar:
+  max_description_chars: 500             # event description cap after html-strip
+
 plane:
   base_url: "https://api.plane.so"       # or self-hosted URL
   workspace_slug: "my-workspace"         # the slug in your Plane URL: app.plane.so/<slug>/
