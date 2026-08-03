@@ -1,11 +1,12 @@
 # Google OAuth Setup
 
 One-time setup for the Google OAuth 2.0 client that authorizes the agent to read
-Gmail and Google Calendar. The refresh token this produces is stored in the OS
-keyring by `python -m app.auth --setup` — see [SECURITY.md](../SECURITY.md) §2
-for storage rules.
+Gmail and Google Calendar and to send the daily digest to your own inbox. The
+refresh token this produces is stored in the OS keyring by
+`python -m app.auth --setup` — see [SECURITY.md](../SECURITY.md) §2 for storage
+rules.
 
-Both Gmail and Calendar are authorized by a **single client** with two scopes.
+Both Gmail and Calendar are authorized by a **single client** with three scopes.
 There is no separate Calendar setup.
 
 ---
@@ -25,8 +26,10 @@ APIs & Services → **Library**, then enable both:
 - **Gmail API**
 - **Google Calendar API**
 
-The scopes the agent requests (`gmail.readonly`, `calendar.readonly`) are
-declared in `app/auth/constants.py`.
+The scopes the agent requests (`gmail.readonly`, `gmail.send`,
+`calendar.readonly`) are declared in `app/auth/constants.py`. `gmail.send`
+is used only by `render_and_deliver` to email the digest to
+`identity.delivery_address`.
 
 ## 3. Configure the OAuth consent screen
 
@@ -83,7 +86,8 @@ uv run python -m app.auth --setup
 - You will see **"Google hasn't verified this app"** — click **Advanced** →
   **Go to chief-of-staff-agent (unsafe)**. This is expected for an unverified
   Desktop app; you are consenting to your own client.
-- Grant both **Read your email** and **View your calendars**.
+- Grant **Read your email**, **Send email on your behalf**, and **View your
+  calendars**.
 - The tab shows "The authentication flow has completed" and closes.
 
 The refresh token is now stored in the OS keyring under:

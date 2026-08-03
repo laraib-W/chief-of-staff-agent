@@ -1,8 +1,14 @@
-"""Gmail provider — read-only, includes the sanitization pipeline (SECURITY.md §3)."""
+"""Gmail provider — read + send. Send is used only for the daily digest to self.
+
+Sanitization pipeline for incoming mail lives in ``_internal.sanitize`` per
+SECURITY.md §3.
+"""
 
 from __future__ import annotations
 
+import base64
 from datetime import UTC, datetime, timedelta
+from email.message import EmailMessage
 
 import structlog
 from google.auth.exceptions import RefreshError
@@ -18,7 +24,7 @@ log = structlog.get_logger(__name__)
 
 
 class GmailClient:
-    """Read-only Gmail API client. Pass ``service`` to bypass live auth in tests."""
+    """Gmail API client (read + send). Pass ``service`` to bypass live auth in tests."""
 
     def __init__(self, gmail_config: GmailConfig, service=None) -> None:
         self._config = gmail_config
@@ -72,3 +78,38 @@ class GmailClient:
             return [], error
 
         return emails, None
+
+    def send_html(
+        self, *, to: str, subject: str, html_body: str
+    ) -> tuple[str | None, str | None]:
+        """Send an HTML email via ``users().messages().send``.
+
+        Returns ``(message_id, None)`` on success, ``(None, error)`` on
+        failure. Callers route the error string to state so the run still
+        completes.
+        """
+        message = EmailMessage()
+        message["To"] = to
+        message["Subject"] = subject
+        message.set_content(
+            "This digest is HTML-only. Open in a client that renders HTML."
+        )
+        message.add_alternative(html_body, subtype="html")
+
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
+
+        try:
+            service = self._get_service()
+            sent = (
+                service.users()
+                .messages()
+                .send(userId="me", body={"raw": raw})
+                .execute()
+            )
+        except (CredentialsError, RefreshError, HttpError, OSError) as exc:
+            log.warning("gmail.send_failed", error=str(exc))
+            return None, f"Gmail send failed: {exc}"
+
+        message_id = sent.get("id")
+        log.info("gmail.send_ok", message_id=message_id, to=to)
+        return message_id, None

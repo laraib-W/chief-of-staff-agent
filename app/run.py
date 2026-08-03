@@ -62,7 +62,9 @@ def main() -> None:
             config={
                 "configurable": {
                     "thread_id": str(run_id),
+                    "run_id": run_id,
                     "memory_db_path": paths["memory"],
+                    "dry_run": args.dry_run,
                 }
             },
         )
