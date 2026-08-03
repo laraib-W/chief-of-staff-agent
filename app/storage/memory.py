@@ -7,7 +7,7 @@ called safely on every run.
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 DDL = """
@@ -123,3 +123,20 @@ def get_all_stuck(path: Path) -> dict[str, date]:
                 "SELECT issue_id, stuck_since FROM issue_stuck_since"
             )
         }
+
+
+def log_digest(path: Path, *, run_id: int, digest_html: str) -> int:
+    """Append the delivered digest HTML to the chronological archive.
+
+    Called by ``render_and_deliver`` on successful send. Returns the row id
+    so tests can round-trip the payload.
+    """
+    delivered_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    with connect(path) as conn:
+        cursor = conn.execute(
+            "INSERT INTO digest_log (delivered_at, run_id, digest_html)"
+            " VALUES (?, ?, ?)",
+            (delivered_at, run_id, digest_html),
+        )
+        conn.commit()
+        return cursor.lastrowid  # type: ignore[return-value]

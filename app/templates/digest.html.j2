@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Morning digest — {{ today_label }}</title>
+</head>
+<body style="margin:0;padding:0;background:#f6f7f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9;padding:24px 0;">
+<tr><td align="center">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+<tr><td style="padding:24px 28px 8px;">
+  <div style="font-size:13px;color:#6b7280;">{{ today_label }}</div>
+  <h1 style="margin:4px 0 0;font-size:22px;line-height:1.3;">Good morning, {{ user_name }}</h1>
+</td></tr>
+
+{% if failure_banner %}
+<tr><td style="padding:12px 28px 0;">
+  <div style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:6px;padding:10px 12px;font-size:13px;">
+    ⚠ {{ failure_banner }}
+  </div>
+</td></tr>
+{% endif %}
+
+{# ── Section 1 · Today's schedule ─────────────────────────────────────────── #}
+<tr><td style="padding:24px 28px 4px;">
+  <h2 style="margin:0;font-size:16px;color:#111;border-bottom:1px solid #e5e7eb;padding-bottom:6px;">Today's schedule</h2>
+</td></tr>
+<tr><td style="padding:8px 28px 4px;color:#111;font-size:14px;">
+{% if errors.calendar %}
+  <div style="color:#6b7280;">Calendar data unavailable today.</div>
+{% elif today_events %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    {% for ev in today_events[:5] %}
+    <tr><td style="padding:6px 0;border-bottom:1px solid #f3f4f6;">
+      <div style="font-weight:600;">{{ ev.summary }}</div>
+      <div style="color:#6b7280;font-size:13px;">
+        {{ ev.when }}{% if ev.location %} · {{ ev.location }}{% endif %}
+        {%- if ev.is_pending_invite %} · <span style="color:#b45309;">pending invite</span>{% endif -%}
+      </div>
+    </td></tr>
+    {% endfor %}
+  </table>
+  {% if today_events|length > 5 %}
+  <details style="margin-top:8px;">
+    <summary style="cursor:pointer;color:#6b7280;font-size:13px;">
+      +{{ today_events|length - 5 }} more today
+    </summary>
+    <ul style="margin:6px 0 0 18px;padding:0;color:#4b5563;font-size:13px;">
+      {% for ev in today_events[5:] %}
+      <li>{{ ev.when }} — {{ ev.summary }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+{% else %}
+  <div style="color:#6b7280;">No events on the calendar today.</div>
+{% endif %}
+</td></tr>
+
+{# ── Section 2 · Needs your reply ─────────────────────────────────────────── #}
+<tr><td style="padding:24px 28px 4px;">
+  <h2 style="margin:0;font-size:16px;color:#111;border-bottom:1px solid #e5e7eb;padding-bottom:6px;">Needs your reply</h2>
+</td></tr>
+<tr><td style="padding:8px 28px 4px;color:#111;font-size:14px;">
+{% if errors.gmail %}
+  <div style="color:#6b7280;">Gmail unavailable today.</div>
+{% elif needs_reply %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    {% for item in needs_reply[:5] %}
+    <tr><td style="padding:6px 0;border-bottom:1px solid #f3f4f6;">
+      <div style="font-weight:600;">{{ item.subject }}</div>
+      <div style="color:#6b7280;font-size:13px;">
+        {{ item.sender }}
+        {%- if item.deadline %} · deadline {{ item.deadline }}{% endif -%}
+      </div>
+      {% if item.ask %}
+      <div style="color:#374151;font-size:13px;margin-top:2px;">{{ item.ask }}</div>
+      {% endif %}
+    </td></tr>
+    {% endfor %}
+  </table>
+  {% if needs_reply|length > 5 %}
+  <details style="margin-top:8px;">
+    <summary style="cursor:pointer;color:#6b7280;font-size:13px;">
+      +{{ needs_reply|length - 5 }} more waiting on you
+    </summary>
+    <ul style="margin:6px 0 0 18px;padding:0;color:#4b5563;font-size:13px;">
+      {% for item in needs_reply[5:] %}
+      <li>{{ item.sender }} — {{ item.subject }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+{% elif email_classification_pending %}
+  <div style="color:#6b7280;">Email classification not yet enabled — {{ raw_email_count }} email(s) in the window.</div>
+{% else %}
+  <div style="color:#6b7280;">Inbox is quiet.</div>
+{% endif %}
+</td></tr>
+
+{# ── Section 3 · Team board ───────────────────────────────────────────────── #}
+<tr><td style="padding:24px 28px 4px;">
+  <h2 style="margin:0;font-size:16px;color:#111;border-bottom:1px solid #e5e7eb;padding-bottom:6px;">Team board</h2>
+</td></tr>
+<tr><td style="padding:8px 28px 4px;color:#111;font-size:14px;">
+{% if errors.plane %}
+  <div style="color:#6b7280;">Board data unavailable today.</div>
+{% elif team_cards %}
+  {% for card in team_cards %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0;border:1px solid #e5e7eb;border-radius:6px;">
+    <tr><td style="padding:10px 12px;">
+      <div>
+        <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;
+          {%- if card.status == 'attention' %}background:#fee2e2;color:#991b1b;
+          {%- elif card.status == 'watch' %}background:#fef3c7;color:#92400e;
+          {%- else %}background:#dcfce7;color:#166534;{% endif %}">
+          {{ card.status_label }}
+        </span>
+        <span style="font-weight:600;margin-left:6px;">{{ card.person }}</span>
+        <span style="color:#6b7280;font-size:13px;margin-left:6px;">
+          in progress: {{ card.in_progress_count }}
+          {%- if card.on_time_rate is not none %} · on-time {{ (card.on_time_rate * 100)|round(0, 'floor')|int }}%{% endif -%}
+        </span>
+      </div>
+      {% if card.summary %}
+      <div style="color:#374151;font-size:13px;margin-top:4px;">{{ card.summary }}</div>
+      {% endif %}
+      {% if card.overdue_items %}
+      <div style="color:#991b1b;font-size:13px;margin-top:4px;">
+        overdue: {% for ref in card.overdue_items %}{{ ref.issue_id }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+      {% endif %}
+      {% if card.inactive_items %}
+      <div style="color:#92400e;font-size:13px;margin-top:2px;">
+        inactive: {% for ref in card.inactive_items %}{{ ref.issue_id }}{% if ref.days_stuck %} ({{ ref.days_stuck }}d){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+      {% endif %}
+    </td></tr>
+  </table>
+  {% endfor %}
+{% else %}
+  <div style="color:#6b7280;">No team cards produced.</div>
+{% endif %}
+</td></tr>
+
+{# ── Section 4 · Connections spotted ──────────────────────────────────────── #}
+<tr><td style="padding:24px 28px 4px;">
+  <h2 style="margin:0;font-size:16px;color:#111;border-bottom:1px solid #e5e7eb;padding-bottom:6px;">Connections spotted</h2>
+</td></tr>
+<tr><td style="padding:8px 28px 20px;color:#111;font-size:14px;">
+{% if priorities %}
+  <ol style="margin:0;padding-left:20px;">
+    {% for p in priorities %}
+    <li style="margin:6px 0;">
+      <div style="font-weight:600;">{{ p.headline }}</div>
+      {% if p.connection %}
+      <div style="color:#374151;font-size:13px;">{{ p.connection }}</div>
+      {% endif %}
+      <div style="color:#6b7280;font-size:12px;">
+        evidence:
+        {%- for ev in p.evidence %} {{ ev.source }}:{{ ev.ref_id }}{% if not loop.last %};{% endif %}{% endfor %}
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+{% else %}
+  <div style="color:#6b7280;">No cross-source connections surfaced today.</div>
+{% endif %}
+</td></tr>
+
+<tr><td style="padding:16px 28px 24px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:12px;">
+  Read-only summary. All figures are grounded in the evidence above.
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
