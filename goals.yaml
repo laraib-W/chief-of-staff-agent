@@ -1,0 +1,41 @@
+# goals.yaml — source of truth for identity, thresholds, and preferences.
+#
+# Read by:
+#   - .claude/commands/gm.md (all sections)
+#   - .claude/commands/plane-standup.md (thresholds)
+#   - app_sdk/run.py (identity for logging)
+#
+# Plane project selection lives in `goals.local.yaml` (gitignored) —
+# run `/plane-setup` once to populate it. The Plane workspace itself
+# is scoped by the MCP server's env vars (see docs/mcp-servers.md), so
+# it does not appear here.
+
+identity:
+  user_name: TODO           # e.g. "Laraib"
+  delivery_address: TODO    # e.g. "you@example.com" — where the digest is sent
+  timezone: Asia/Karachi    # IANA timezone; used to bound "today"
+
+gmail:
+  # Emails from these domains get a +1 priority boost in /gm ranking.
+  # Case-insensitive match on the sender's domain.
+  trusted_domains:
+    - arbisoft.com
+
+thresholds:
+  # An active-bucket Plane issue is flagged "stuck" if it has sat in
+  # its current state for more than this many days. Replaces the old
+  # inactivity/overdue split — target_date is rarely set in this
+  # workflow, so time-in-state is the durable staleness signal.
+  # State classification (pipeline / active / terminal) is done by
+  # Claude per project at run time — see .claude/commands/plane-standup.md
+  # Step 4. No manual state_group_overrides config is needed.
+  inactivity_days: 4
+  # How far ahead the /gm command looks when listing calendar events.
+  calendar_lookahead_days: 7
+
+# Optional: quarterly objectives Claude will reference when ranking
+# priorities. Keep it short — Claude re-reads this file every run.
+objectives:
+  - key: q4-example
+    title: TODO — write a 1-sentence quarterly objective
+    why: TODO — why this matters right now

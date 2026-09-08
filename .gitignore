@@ -7,6 +7,18 @@
 # Real user config (see config.example.yaml for the template)
 config.yaml
 
+# experiment/claude-agent-sdk: goals.yaml holds identity + Plane IDs.
+# Commit only the template shape by keeping the placeholder version;
+# never commit the filled-in file. The `!goals.yaml` line below is a
+# manual carve-out: uncomment it when publishing the template.
+goals.local.yaml
+
+# Claude Code local state (per-project settings, session history) —
+# but slash commands under .claude/commands/ ship with the repo so
+# `/gm`, `/plane-standup`, etc. work out of the box after clone.
+.claude/*
+!.claude/commands/
+
 # Private fixtures that cannot be safely committed
 tests/fixtures/private/
 tests/evaluation/golden_private/
