@@ -110,6 +110,9 @@ launchd at `python -m app_sdk.run` to get a daily delivery.
   re-run the `claude mcp add --scope user …` command from
   `docs/mcp-servers.md`. If it's connected but tool calls fail, check
   `.env` has every variable the server needs.
-- **`/gm` calls send-email in dry-run** — check `DRY_RUN_DENIED_TOOLS`
-  in `app_sdk/run.py` matches your Gmail MCP server's actual tool
-  name (see the server's docs).
+- **`/gm` calls send_email when it shouldn't** — check
+  `GMAIL_WRITE_TOOLS` in `app_sdk/run.py` matches your Gmail MCP
+  server's actual tool names (see the server's docs). The default
+  list matches `@gongrzhe/server-gmail-autoauth-mcp` v1.1.11. That
+  file's `_disallowed_tools` allows `send_email` only for
+  `--command /gm` in non-dry-run; everything else is denied.

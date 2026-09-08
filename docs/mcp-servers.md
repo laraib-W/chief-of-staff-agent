@@ -27,7 +27,7 @@ Servers already on the list can be skipped in the install steps below.
 
 ```bash
 claude mcp add --scope user gmail \
-  npx -y @gongrzhe/server-gmail-autoauth-mcp
+  -- npx -y @gongrzhe/server-gmail-autoauth-mcp
 ```
 
 On first invocation, the server prints a URL and a device code —
@@ -41,18 +41,104 @@ runs are silent.
 
 ### gcal — today + 7-day look-ahead
 
-```bash
-claude mcp add --scope user gcal \
-  npx -y @cocal/google-calendar-mcp
+Unlike gmail, `@cocal/google-calendar-mcp` **cannot** run its own OAuth
+flow from a fresh install. It requires a Google Cloud OAuth client
+credentials file on disk, referenced via the
+`GOOGLE_OAUTH_CREDENTIALS` env var. Setup is a three-step dance.
+
+#### 1. Get OAuth client credentials
+
+If you already have `GOOGLE_OAUTH_CLIENT_ID` and
+`GOOGLE_OAUTH_CLIENT_SECRET` in `.env` (from the `main` branch's
+`app.auth` setup), skip to step 2 — you can synthesize the JSON file
+from those values.
+
+Otherwise, get them from Google Cloud Console:
+
+1. https://console.cloud.google.com — new or existing project
+2. Enable the **Google Calendar API**
+3. **Credentials → Create Credentials → OAuth client ID → Desktop app**
+4. Under **OAuth consent screen → Audience**, add your Gmail address
+   as a test user
+5. Download the JSON
+
+#### 2. Land the credentials file at a stable path
+
+Standard location: `~/.config/gcal-mcp/credentials.json`, mode 600.
+The file must be Google's standard Desktop-app OAuth JSON shape:
+
+```json
+{
+  "installed": {
+    "client_id": "…",
+    "client_secret": "…",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "redirect_uris": ["http://localhost"]
+  }
+}
 ```
 
-Same OAuth pattern as gmail. If you already consented for the same
-Google account when installing gmail, some MCPs reuse the token — but
-most calendar MCPs run their own flow. Follow the prompts.
+If you're reusing the id + secret from `.env`, a one-liner writes
+this file without ever echoing the values to stdout:
+
+```bash
+python3 - <<'PY'
+import json, pathlib
+env = dict(
+    line.strip().split('=', 1)
+    for line in pathlib.Path('.env').read_text().splitlines()
+    if line.strip() and not line.strip().startswith('#') and '=' in line
+)
+strip = lambda v: v.strip().strip('"').strip("'")
+creds = {'installed': {
+    'client_id': strip(env['GOOGLE_OAUTH_CLIENT_ID']),
+    'client_secret': strip(env['GOOGLE_OAUTH_CLIENT_SECRET']),
+    'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+    'token_uri': 'https://oauth2.googleapis.com/token',
+    'auth_provider_x509_cert_url': 'https://www.googleapis.com/oauth2/v1/certs',
+    'redirect_uris': ['http://localhost'],
+}}
+out = pathlib.Path.home() / '.config' / 'gcal-mcp' / 'credentials.json'
+out.parent.mkdir(parents=True, exist_ok=True)
+out.write_text(json.dumps(creds))
+out.chmod(0o600)
+PY
+```
+
+#### 3. Register the MCP and run the auth flow
+
+```bash
+claude mcp add --scope user gcal \
+  --env GOOGLE_OAUTH_CREDENTIALS="$HOME/.config/gcal-mcp/credentials.json" \
+  -- npx -y "@cocal/google-calendar-mcp"
+
+GOOGLE_OAUTH_CREDENTIALS="$HOME/.config/gcal-mcp/credentials.json" \
+  npx @cocal/google-calendar-mcp auth
+```
+
+The second command opens a browser — consent with the same Gmail
+account you used for the gmail MCP. Token is cached; subsequent runs
+are silent. `claude mcp list` should then show `gcal ✓ Connected`.
+
+**Gotchas:**
+- `--` before `npx` is mandatory — without it, Claude Code's arg
+  parser interprets `-y` as its own flag and errors out.
+- Quote the package name (`"@cocal/google-calendar-mcp"`) — the arg
+  parser can otherwise drop `@`-prefixed args on some CLI versions.
+- While the OAuth consent screen is in **Testing** mode, the cached
+  token expires every 7 days. Publish the app in Google Cloud Console
+  to remove the weekly re-auth.
 
 **Tools relied on:**
 - `mcp__gcal__list-events`
 - `mcp__gcal__get-current-time` (used in Step 0 of `/gm`)
+
+Calendar is **strictly read-only** in this agent. Every write tool
+(`create-event`, `update-event`, `delete-event`, `respond-to-event`)
+is denied at both guard layers — `.claude/settings.local.json` and
+`GCAL_WRITE_TOOLS` in `app_sdk/run.py`. See CLAUDE.md Part 1.1.
 
 ### plane — issues, states, assignees per project
 
@@ -147,8 +233,11 @@ prefix changes accordingly — Claude figures this out from
   "package not found," run `npm view <package>` and find the current
   server on [modelcontextprotocol.io/servers](https://modelcontextprotocol.io/servers).
 
-If you swap Gmail servers to one where the send tool has a different
-name, also update `DRY_RUN_DENIED_TOOLS` in `app_sdk/run.py`.
+If you swap Gmail servers to one where the tool names differ, also
+update `GMAIL_WRITE_TOOLS` in `app_sdk/run.py` and the `deny` list in
+`.claude/settings.local.json`. Both surfaces block every Gmail
+mutation by default; only `/gm` (via the SDK, not `--dry-run`) is
+allowed to call `send_email`.
 
 ## Smoke test
 
