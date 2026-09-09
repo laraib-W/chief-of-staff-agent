@@ -139,6 +139,6 @@ items, print a one-line "nothing" state and move on.
 
 ## Part 5: When invoked without a slash command
 
-If the user types a free-form request instead of `/gm`, `/triage`, or
+If the user types a free-form request instead of `/morning-digest`, `/triage`, or
 `/plane-standup`, ask which command they want or offer the closest match.
 Do not silently run the full morning pipeline — it's an expensive fan-out.

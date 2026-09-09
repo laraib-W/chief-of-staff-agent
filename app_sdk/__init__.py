@@ -10,6 +10,6 @@ via `claude mcp add --scope user …` — see docs/mcp-servers.md. They
 are available to any `claude` session on the machine, including this
 SDK entrypoint.
 
-For interactive use, prefer:  claude              # then type /gm
+For interactive use, prefer:  claude              # then type /morning-digest
 For scheduled runs, prefer:   python -m app_sdk.run
 """

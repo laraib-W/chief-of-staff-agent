@@ -1,7 +1,7 @@
 # goals.yaml — source of truth for identity, thresholds, and preferences.
 #
 # Read by:
-#   - .claude/commands/gm.md (all sections)
+#   - .claude/commands/morning-digest.md (all sections)
 #   - .claude/commands/plane-standup.md (thresholds)
 #   - app_sdk/run.py (identity for logging)
 #
@@ -16,7 +16,7 @@ identity:
   timezone: Asia/Karachi    # IANA timezone; used to bound "today"
 
 gmail:
-  # Emails from these domains get a +1 priority boost in /gm ranking.
+  # Emails from these domains get a +1 priority boost in /morning-digest ranking.
   # Case-insensitive match on the sender's domain.
   trusted_domains:
     - arbisoft.com
@@ -30,7 +30,7 @@ thresholds:
   # Claude per project at run time — see .claude/commands/plane-standup.md
   # Step 4. No manual state_group_overrides config is needed.
   inactivity_days: 4
-  # How far ahead the /gm command looks when listing calendar events.
+  # How far ahead the /morning-digest command looks when listing calendar events.
   calendar_lookahead_days: 7
 
 # Optional: quarterly objectives Claude will reference when ranking

@@ -14,10 +14,12 @@ config.yaml
 goals.local.yaml
 
 # Claude Code local state (per-project settings, session history) —
-# but slash commands under .claude/commands/ ship with the repo so
-# `/gm`, `/plane-standup`, etc. work out of the box after clone.
+# but slash commands under .claude/commands/ and subagents under
+# .claude/agents/ ship with the repo so `/morning-digest`,
+# `/plane-standup`, etc. work out of the box after clone.
 .claude/*
 !.claude/commands/
+!.claude/agents/
 
 # Private fixtures that cannot be safely committed
 tests/fixtures/private/
@@ -47,3 +49,6 @@ venv/
 # Build artifacts
 build/
 dist/
+
+# Local cache for slash commands (Plane members, etc.)
+.cache/

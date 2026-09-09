@@ -15,8 +15,13 @@ Replaces hand-editing UUIDs into `goals.yaml`.
 
 ### Step 1: List projects
 
-Call `mcp__plane__get_projects`. Collect each project's `id` and `name`.
-Sort alphabetically by name.
+Call `mcp__plane__get_projects`. Collect each project's `id`, `identifier`,
+and `name`. Sort alphabetically by name.
+
+`identifier` is the short prefix Plane uses in readable issue IDs (e.g.
+`ARBISOFTOPEN` for `ARBISOFTOPEN-502`). It's needed later by
+`/plane-standup` and `/morning-digest` for issue hydration. Capture it
+here so those commands don't have to call `get_projects` again.
 
 ### Step 2: Present the menu
 
@@ -46,8 +51,10 @@ Merge the selection into `goals.local.yaml` at repo root. Shape:
 plane:
   projects:
     - id: 550e8400-e29b-41d4-a716-446655440000
+      identifier: ENG
       name: Engineering
     - id: 8f14e45f-3c74-4b8b-9f3d-2a1c5d6e7f80
+      identifier: INFRA
       name: Infra
 ```
 
@@ -67,7 +74,7 @@ Saved <N> project(s) to goals.local.yaml:
   - <name>
   - <name>
 
-Run /plane-standup or /gm to use them.
+Run /plane-standup or /morning-digest to use them.
 ```
 
 ## Guardrails

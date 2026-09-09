@@ -9,7 +9,7 @@ LangGraph pipeline on `main` is untouched — the two live side by side.
 
 ```
 CLAUDE.md              # persona + non-negotiables (read-only, cited)
-.claude/commands/gm.md              # morning digest slash command
+.claude/commands/morning-digest.md  # morning digest slash command
 .claude/commands/triage.md          # read-only inbox tiering
 .claude/commands/plane-standup.md
 .claude/commands/plane-setup.md
@@ -38,13 +38,13 @@ git checkout experiment/claude-agent-sdk
 
 # Every morning
 claude
-# then type: /gm
+# then type: /morning-digest
 ```
 
 Claude Code auto-loads `CLAUDE.md` and every file in `.claude/commands/`
 from the repo root. MCP servers come from your user-scope Claude
 config (see [`mcp-servers.md`](mcp-servers.md)) — not from a project
-`.mcp.json`. The `/gm` slash command follows `.claude/commands/gm.md`
+`.mcp.json`. The `/morning-digest` slash command follows `.claude/commands/morning-digest.md`
 step-by-step.
 
 ### Scheduled (Python SDK)
@@ -110,9 +110,9 @@ launchd at `python -m app_sdk.run` to get a daily delivery.
   re-run the `claude mcp add --scope user …` command from
   `docs/mcp-servers.md`. If it's connected but tool calls fail, check
   `.env` has every variable the server needs.
-- **`/gm` calls send_email when it shouldn't** — check
+- **`/morning-digest` calls send_email when it shouldn't** — check
   `GMAIL_WRITE_TOOLS` in `app_sdk/run.py` matches your Gmail MCP
   server's actual tool names (see the server's docs). The default
   list matches `@gongrzhe/server-gmail-autoauth-mcp` v1.1.11. That
   file's `_disallowed_tools` allows `send_email` only for
-  `--command /gm` in non-dry-run; everything else is denied.
+  `--command /morning-digest` in non-dry-run; everything else is denied.

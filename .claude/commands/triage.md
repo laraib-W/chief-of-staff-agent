@@ -3,7 +3,7 @@
 ## Description
 Scan the last 24h of email, tier it, and produce a prioritized reading
 list. This does **not** draft or send replies — it's a decision aid for
-the user's inbox time. If you want the morning digest instead, use `/gm`.
+the user's inbox time. If you want the morning digest instead, use `/morning-digest`.
 
 ## Preconditions
 - Gmail MCP connected.

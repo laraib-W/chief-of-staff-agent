@@ -2,21 +2,21 @@
 at the repo root via `claude-agent-sdk`.
 
 Usage:
-    python -m app_sdk.run                    # runs /gm (allowed to send)
+    python -m app_sdk.run                    # runs /morning-digest (allowed to send)
     python -m app_sdk.run --command /triage  # read-only email
     python -m app_sdk.run --command /plane-standup
-    python -m app_sdk.run --dry-run          # deny send_email even for /gm
+    python -m app_sdk.run --dry-run          # deny send_email even for /morning-digest
 
 The SDK loads CLAUDE.md and .claude/commands/*.md automatically as long as
 `cwd` points at the repo root. MCP servers are read from your
 user-scope Claude Code config (installed via `claude mcp add --scope
 user …`), so `claude mcp list` on your machine must show gmail, gcal,
-and plane before this entrypoint can run `/gm`. Everything the
+and plane before this entrypoint can run `/morning-digest`. Everything the
 interactive `claude` CLI would do, this does — just non-interactively,
 so cron works.
 
 Every Gmail mutation is denied by default (see GMAIL_WRITE_TOOLS). The
-one exception is `send_email` for `/gm` in non-dry-run mode — that's
+one exception is `send_email` for `/morning-digest` in non-dry-run mode — that's
 how the morning digest gets delivered.
 """
 
@@ -46,11 +46,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Every Gmail write tool exposed by @gongrzhe/server-gmail-autoauth-mcp
 # v1.1.11. Denied by default so /triage and /plane-standup can't mutate
 # the inbox. `send_email` is the one exception — it's the delivery
-# channel for /gm and is conditionally allowed below.
+# channel for /morning-digest and is conditionally allowed below.
 #
 # `.claude/settings.local.json` also denies every entry here EXCEPT
 # `send_email` for interactive Claude Code sessions. This SDK layer
-# owns `send_email` because /gm's send happens only through here.
+# owns `send_email` because /morning-digest's send happens only through here.
 GMAIL_WRITE_TOOLS = [
     "mcp__gmail__send_email",
     "mcp__gmail__draft_email",
@@ -75,13 +75,17 @@ GMAIL_WRITE_TOOLS = [
 # because MCP transports sometimes rewrite separators.
 GCAL_WRITE_TOOLS = [
     "mcp__gcal__create-event",
+    "mcp__gcal__create-events",
     "mcp__gcal__update-event",
     "mcp__gcal__delete-event",
     "mcp__gcal__respond-to-event",
+    "mcp__gcal__manage-accounts",
     "mcp__gcal__create_event",
+    "mcp__gcal__create_events",
     "mcp__gcal__update_event",
     "mcp__gcal__delete_event",
     "mcp__gcal__respond_to_event",
+    "mcp__gcal__manage_accounts",
 ]
 
 
@@ -89,19 +93,19 @@ def _disallowed_tools(command: str, dry_run: bool) -> list[str]:
     """Return the write tools that must not be called for this run.
 
     Default: everything in GMAIL_WRITE_TOOLS and GCAL_WRITE_TOOLS is
-    denied. Only `/gm` in normal (non-dry-run) mode is allowed to call
+    denied. Only `/morning-digest` in normal (non-dry-run) mode is allowed to call
     gmail `send_email` — that's the one legitimate write in the system.
     Calendar writes are never allowed. `/triage`, `/plane-standup`, and
     any dry-run are fully read-only.
     """
     denied = list(GMAIL_WRITE_TOOLS) + list(GCAL_WRITE_TOOLS)
-    if command == "/gm" and not dry_run:
+    if command == "/morning-digest" and not dry_run:
         denied.remove("mcp__gmail__send_email")
     return denied
 
 
 async def _run(command: str, dry_run: bool) -> int:
-    """Invoke `command` (a slash command like `/gm`) and stream messages.
+    """Invoke `command` (a slash command like `/morning-digest`) and stream messages.
 
     Returns a process exit code: 0 on completion, 1 on SDK error.
     """
@@ -126,10 +130,54 @@ async def _run(command: str, dry_run: bool) -> int:
     return 0
 
 
+# Rate-limit utilization above which we surface a one-line warning.
+# Our org has overage_status=rejected, so hitting 100% causes hard
+# request failures — worth knowing before the next run.
+_RATE_LIMIT_WARN_THRESHOLD = 0.8
+
+
+def _format_rate_limit(message: object) -> str | None:
+    """Return a one-line warning if any rate-limit window is above the
+    threshold, otherwise None (caller should stay silent).
+    """
+    if type(message).__name__ != "RateLimitEvent":
+        return None
+    info = getattr(message, "rate_limit_info", None)
+    raw = getattr(info, "raw", None) or {}
+    windows = raw.get("unifiedWindows") or {}
+    parts = []
+    hot = False
+    for name, data in windows.items():
+        util = data.get("utilization") if isinstance(data, dict) else None
+        if util is None:
+            continue
+        parts.append(f"{name}={util:.0%}")
+        if util >= _RATE_LIMIT_WARN_THRESHOLD:
+            hot = True
+    return f"[rate-limit] {', '.join(parts)}" if hot and parts else None
+
+
 def _print_message(message: object) -> None:
     """Best-effort message printer — the SDK's message shape varies by
     version, so we handle the common cases and fall back to repr.
+    RateLimitEvent heartbeats are silent unless a window is hot.
     """
+    warning = _format_rate_limit(message)
+    if warning is not None:
+        print(warning)
+        return
+    if type(message).__name__ == "RateLimitEvent":
+        return
+    # SystemMessage heartbeats (thinking-token counters etc.) are noise
+    # in the digest transcript — silence them. Real permission denials
+    # still surface (subtype='permission_denied') so we can debug tool
+    # allowlist gaps.
+    if type(message).__name__ == "SystemMessage":
+        data = getattr(message, "data", {}) or {}
+        subtype = data.get("subtype") if isinstance(data, dict) else None
+        if subtype == "thinking_tokens":
+            return
+
     text = getattr(message, "text", None)
     if isinstance(text, str) and text:
         print(text)
@@ -155,8 +203,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="app_sdk.run")
     parser.add_argument(
         "--command",
-        default="/gm",
-        help="Slash command to run. Defaults to /gm.",
+        default="/morning-digest",
+        help="Slash command to run. Defaults to /morning-digest.",
     )
     parser.add_argument(
         "--dry-run",

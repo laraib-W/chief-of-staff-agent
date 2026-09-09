@@ -1,17 +1,11 @@
 # MCP Servers — `experiment/claude-agent-sdk`
 
-The `/gm`, `/triage`, and `/plane-standup` commands need three MCP
+The `/morning-digest`, `/triage`, and `/plane-standup` commands need three MCP
 servers: **gmail**, **gcal**, and **plane**. Install them **once at
 user scope** — they'll then be available in every `claude` session on
 your machine, including this project and any other. This matches the
 [reference repo][ref] design.
 
-There is **no `.mcp.json`** in this repo. Project-scope MCP is
-possible with Claude Code, but user-scope keeps setup out of the
-project directory and lets a single OAuth flow serve any Claude
-session.
-
-[ref]: https://github.com/mimurchison/claude-chief-of-staff
 
 ## Verify what's already connected
 
@@ -37,7 +31,7 @@ runs are silent.
 **Tools the commands rely on:**
 - `mcp__gmail__list-emails` (or the server-specific equivalent)
 - `mcp__gmail__get-email`
-- `mcp__gmail__send-email` — the **only** write path in `/gm`
+- `mcp__gmail__send-email` — the **only** write path in `/morning-digest`
 
 ### gcal — today + 7-day look-ahead
 
@@ -133,7 +127,7 @@ are silent. `claude mcp list` should then show `gcal ✓ Connected`.
 
 **Tools relied on:**
 - `mcp__gcal__list-events`
-- `mcp__gcal__get-current-time` (used in Step 0 of `/gm`)
+- `mcp__gcal__get-current-time` (used in Step 0 of `/morning-digest`)
 
 Calendar is **strictly read-only** in this agent. Every write tool
 (`create-event`, `update-event`, `delete-event`, `respond-to-event`)
@@ -236,7 +230,7 @@ prefix changes accordingly — Claude figures this out from
 If you swap Gmail servers to one where the tool names differ, also
 update `GMAIL_WRITE_TOOLS` in `app_sdk/run.py` and the `deny` list in
 `.claude/settings.local.json`. Both surfaces block every Gmail
-mutation by default; only `/gm` (via the SDK, not `--dry-run`) is
+mutation by default; only `/morning-digest` (via the SDK, not `--dry-run`) is
 allowed to call `send_email`.
 
 ## Smoke test
@@ -256,7 +250,7 @@ python -m app_sdk.run --command /plane-standup --dry-run
 If you're using cloud Plane via hosted OAuth, the very first Plane
 tool call opens a browser for consent — subsequent calls are silent.
 
-**Full `/gm` (needs Gmail + Calendar OAuth done first):**
+**Full `/morning-digest` (needs Gmail + Calendar OAuth done first):**
 
 ```bash
 python -m app_sdk.run --dry-run    # prints digest, denies send-email
