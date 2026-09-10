@@ -1,7 +1,7 @@
 ---
 name: plane-fetcher
 description: Fetch states, active-bucket issues (with age-in-state and is_stuck), and members for a single Plane project. Returns structured evidence — issue_id, readable_id, state bucket, assignee_ids, updated_at, state_updated_at, age_in_state_days, is_stuck — so the parent can build team-health cards without pulling raw issue bodies into its context. Classifies state NAMES into pipeline/active/terminal buckets (Plane's built-in state.group is unreliable in custom workspaces). Handles the v0.1.5 `list_project_issues` field-stripping workaround (per-issue hydration) internally so callers don't reimplement it.
-tools: mcp__plane__list_states, mcp__plane__list_project_issues, mcp__plane__get_issue_using_readable_identifier, mcp__plane__get_workspace_members, Read, Write
+tools: mcp__plane__list_states, mcp__plane__list_project_issues, mcp__plane__get_issue_using_readable_identifier, mcp__plane__get_workspace_members, Bash, Read, Write
 model: sonnet
 ---
 
@@ -73,16 +73,57 @@ Rules of thumb when unsure:
 - When still ambiguous, prefer **active** over `pipeline` (better to
   over-flag than to miss stuck work).
 
-### 2. List + filter to active-bucket stubs
+### 2. List + filter to active-bucket stubs — with `jq`, not context
 
-`mcp__plane__list_project_issues` — record the full count as
-`total_issues`. The payload commonly overflows to disk (200KB+); do
-not read it into main context. Parse the overflow file with a chunked
-read and, for each issue, look up its state via the bucket map from
-step 1.
+`mcp__plane__list_project_issues` returns **every** issue in the
+project. The MCP tool takes only `project_id` — no state filter, no
+pagination, no field selection — so there is no way to ask for less.
+The response overflows to a file on disk.
 
-Emit a stub per active-bucket issue: `{sequence_id, name, state_id,
-updated_at}`. Drop everything else (pipeline / terminal).
+**Never read that overflow file into context — not whole, not
+chunked.** Measured on a real 492-issue project: 248KB ≈ 62k tokens,
+of which ~90% is pipeline/terminal issues you are about to discard.
+Filter it on disk and read back only the stubs.
+
+The tool result gives you the overflow path. Set `ACTIVE` to a JSON
+array of the state ids you bucketed as `active` in step 1, then:
+
+```bash
+jq -c --argjson active "$ACTIVE" '
+  (if type=="array" and (.[0]|type=="object") and (.[0]|has("text"))
+   then (.[0].text|fromjson) else . end)
+  | {total_issues: (.total_count // (.results|length)),
+     stubs: [.results[]
+             | select(.state.id as $s | $active | index($s))
+             | {issue_id: .id, sequence_id, name, state_id: .state.id,
+                updated_at}]}
+' "$OVERFLOW_PATH"
+```
+
+Read `total_issues` and `stubs` straight off that output. Drop
+everything else (pipeline / terminal).
+
+Payload shape, verified against a real response — do not re-derive
+it by reading the file:
+
+- Top level is `{total_count, count, results: [...]}`; take
+  `total_issues` from `total_count`.
+- `state` is an **object**, not a bare uuid — join on `.state.id`.
+  Its `name`, `color`, and `group` all come back `null` (the same
+  v0.1.5 stripping step 3 works around), so the step-1 bucket map is
+  the *only* way to classify an issue.
+- Per-issue keys are exactly `id, name, sequence_id, state,
+  priority, created_at, updated_at`. `assignees`, `target_date`, and
+  `state_updated_at` are **absent** — that is what step 3 recovers.
+- `issue_id` comes from `.id` here rather than from hydration, so
+  the output contract still has it when a hydration call fails.
+- The leading `if` unwraps the `[{"type":"text","text":"…"}]`
+  content-block form some overflow files take; it is a no-op on raw
+  JSON.
+
+Expected reduction: ~248KB → ~10KB for 42 active stubs (~25x). If
+`jq` fails or the path is missing, fall back to a bounded `Read` of
+the overflow file and carry on — a slow run beats a failed one.
 
 ### 3. Hydrate active issues (workaround for v0.1.5 field stripping)
 
@@ -130,16 +171,60 @@ cost every run, use a local cache:
 Collect `assignee_uuid_union` — the union of every `assignee_ids`
 across the hydrated (active-bucket) issues.
 
-**Decide whether to fetch:**
-1. Read `.cache/plane_members.json` if it exists. Treat it as fresh
-   if `fetched_at` is within the last 7 days.
-2. If the cache is fresh **and** every UUID in
-   `assignee_uuid_union` is present, use it — no MCP call.
-3. Otherwise call `mcp__plane__get_workspace_members` once. Flatten
-   each row to `{uuid: display_name}` using this fallback order:
-   `display_name` → `first_name last_name` → `email` → uuid.
-   Rewrite `.cache/plane_members.json` with the fresh map and current
-   timestamp so parallel siblings can reuse it.
+Both the cache and the MCP response are far too big to read into
+context — the cache is ~65KB for a 1,000-person workspace and the
+raw `get_workspace_members` payload is ~271KB. **Never `Read` either
+one.** Use `jq` for both, exactly as in step 2.
+
+**Step 4a — probe the cache.** Set `WANT` to `assignee_uuid_union`
+as a JSON array. This one call answers all three questions
+(fresh? complete? what are the names?) and returns a few hundred
+bytes:
+
+```bash
+HORIZON=$(date -u -v-7d +%Y-%m-%dT%H:%M:%SZ)
+jq -c --argjson want "$WANT" --arg horizon "$HORIZON" '
+  . as $root
+  | {fresh: ((.fetched_at // "") >= $horizon),
+     missing: [ $want[] | select($root.members[.] == null) ],
+     members: [ $want[] | select($root.members[.] != null)
+                | {id: ., display_name: $root.members[.]} ]}
+' .cache/plane_members.json
+```
+
+If the file does not exist `jq` errors — treat that as
+`{fresh:false, missing:WANT}` and go to 4b.
+
+**Step 4b — fetch only if `fresh` is false or `missing` is
+non-empty.** Call `mcp__plane__get_workspace_members` once, then
+flatten the overflow file straight to the cache without reading it:
+
+```bash
+jq --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+  def nm:
+    (.display_name // "") as $d
+    | (((.first_name // "") + " " + (.last_name // "")) | gsub("^ +| +$";"")) as $f
+    | if $d != "" then $d elif $f != "" then $f elif (.email // "") != "" then .email else .id end;
+  (if type=="array" and (.[0]|type=="object") and (.[0]|has("text"))
+   then (.[0].text|fromjson) else . end)
+  | {fetched_at: $now, members: (map({key: .id, value: nm}) | from_entries)}
+' "$MEMBERS_OVERFLOW_PATH" > .cache/plane_members.json.tmp.$$ \
+  && mv .cache/plane_members.json.tmp.$$ .cache/plane_members.json
+```
+
+Write via `.tmp.$$` + `mv` so the replace is atomic: siblings in the
+fan-out read this file concurrently, and a truncated 65KB write is a
+corrupt cache for everyone else.
+
+Then re-run the 4a probe to pick up the names.
+
+Payload shape, verified against a real 1,062-member response: a bare
+JSON **array** (no `results` wrapper) whose rows carry `id,
+first_name, last_name, email, avatar, avatar_url, display_name,
+role`. `nm` implements the `display_name` → `first_name last_name` →
+`email` → uuid fallback, testing for empty strings rather than
+`//` — jq's `//` only catches `null`/`false`, and Plane returns `""`
+for absent names.
 
 All plane-fetcher instances in a parallel fanout share the same
 cache file — the first one to hit a miss refreshes it and the rest
@@ -226,3 +311,12 @@ On failure, return the same shape with empty lists and a populated
   cite it.
 - The only file you may write is `.cache/plane_members.json`. Do
   not write anywhere else on disk.
+- **`Bash` is for filtering JSON on disk — nothing else.** Run `jq`
+  (and read-only helpers like `wc`, `head`) against MCP overflow
+  files and `.cache/`. Never use the shell to reach Plane directly:
+  no `curl`, `wget`, `httpie`, or any network call. The read-only
+  guarantee in CLAUDE.md §1.1 covers the shell too — a mutation is a
+  mutation whether it arrives over MCP or over HTTP. Never `rm` or
+  redirect output anywhere outside `.cache/`; the only `mv` you may
+  run is the `.tmp.$$` → `plane_members.json` atomic replace in
+  step 4b, wholly inside `.cache/`.

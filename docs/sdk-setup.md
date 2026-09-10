@@ -51,8 +51,10 @@ step-by-step.
 
 ```bash
 uv sync                                        # installs claude-agent-sdk
+python -m app_sdk.auth --setup                 # one-time: authorize send path
 python -m app_sdk.run --dry-run                # prints digest, no send
-python -m app_sdk.run                          # delivers via Gmail MCP
+python -m app_sdk.run                          # delivers via Gmail API
+python -m app_sdk.run --to you@example.com     # override recipient
 python -m app_sdk.run --command /triage        # any slash command
 ```
 
@@ -60,15 +62,65 @@ python -m app_sdk.run --command /triage        # any slash command
 CLAUDE.md + slash commands + MCP servers are picked up. Point cron or
 launchd at `python -m app_sdk.run` to get a daily delivery.
 
+**macOS shortcut** — a LaunchAgent template is checked in:
+
+```bash
+./scripts/install-schedule.sh              # default: 08:00 local time
+HOUR=7 MINUTE=30 ./scripts/install-schedule.sh
+```
+
+The script resolves the repo root and `uv` path, substitutes into
+`scripts/chief-of-staff-agent-sdk.plist.template`, writes the resulting
+plist to `~/Library/LaunchAgents/com.chief-of-staff-agent-sdk.plist`,
+and reloads it (`launchctl bootout` + `bootstrap`). Idempotent —
+re-run any time to change the hour. First scheduled run must be
+preceded by an interactive `python -m app_sdk.auth --setup` and by
+`claude mcp login gmail` + `claude mcp login gcal`, so the MCP OAuth
+tokens are cached. A scheduled run is non-interactive and cannot
+perform either consent flow itself.
+
+Delivery does **not** go through the Gmail MCP server. The agent
+emits the finished HTML between `<<<DIGEST-START>>>` /
+`<<<DIGEST-END>>>` markers; `run.py` extracts the block and sends it
+via the Gmail API using credentials from `app_sdk.auth` (keyring
+service `chief-of-staff-agent-sdk`, scope `gmail.send` only). Every
+Gmail write tool is denied to the agent — the send path is
+orchestrator-owned and deterministic.
+
 ## Prerequisites
 
-1. **Anthropic API key** — set `ANTHROPIC_API_KEY` in `.env`.
-2. **Google OAuth client** — same one used by `app/` on main. See
-   [`google-oauth-setup.md`](google-oauth-setup.md).
-3. **Plane API token** — same one used by `app/`. `PLANE_API_TOKEN` in
+1. **`jq` on `PATH`** — a hard dependency, not a convenience.
+   `.claude/agents/plane-fetcher.md` shells out to `jq` to filter
+   Plane's oversized MCP payloads on disk instead of reading them
+   into context (`list_project_issues` returns ~250KB for a
+   500-issue project; `get_workspace_members` ~270KB for a
+   1,000-person workspace). Install with `brew install jq` /
+   `apt install jq`. Without it, member resolution fails and the
+   digest prints raw UUIDs instead of names.
+2. **Anthropic API key** — set `ANTHROPIC_API_KEY` in `.env`.
+3. **Google OAuth client** — same Desktop-app OAuth client used by
+   `app/` on main (`GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` in `.env`).
+   See [`google-oauth-setup.md`](google-oauth-setup.md).
+4. **Send-path token** — run `python -m app_sdk.auth --setup` once
+   to authorize the `gmail.send` scope and cache the refresh token in
+   your OS keyring. Independent of the Gmail MCP's own OAuth.
+5. **Plane API token** — same one used by `app/`. `PLANE_API_TOKEN` in
    `.env`, plus `PLANE_WORKSPACE_SLUG`.
-4. **MCP servers installed** — see [`mcp-servers.md`](mcp-servers.md).
-5. **`goals.yaml` filled in** — replace every `TODO` at repo root.
+6. **MCP servers installed *and authenticated*** — see
+   [`mcp-servers.md`](mcp-servers.md). Registering with
+   `claude mcp add` is not enough: run `claude mcp login gmail` and
+   `claude mcp login gcal` once each, and confirm `claude mcp list`
+   shows both as `✔ Connected` rather than
+   `! Needs authentication`.
+7. **`goals.yaml` filled in** — replace every `TODO` at repo root.
+   `identity.delivery_address` is what `run.py` sends the digest to.
+8. **Permission rules** — nothing to do; they ship in
+   `.claude/settings.json`, which is committed precisely so a fresh
+   clone works. It allows the read-only MCP tools plus the `jq` /
+   `mv` / cache-write calls `plane-fetcher` needs, and denies every
+   Gmail, Calendar, and Plane mutation. `.claude/settings.local.json`
+   stays gitignored for per-machine overrides. If you add a rule
+   everyone needs, put it in `settings.json`.
 
 ## Design notes
 
@@ -110,9 +162,36 @@ launchd at `python -m app_sdk.run` to get a daily delivery.
   re-run the `claude mcp add --scope user …` command from
   `docs/mcp-servers.md`. If it's connected but tool calls fail, check
   `.env` has every variable the server needs.
-- **`/morning-digest` calls send_email when it shouldn't** — check
-  `GMAIL_WRITE_TOOLS` in `app_sdk/run.py` matches your Gmail MCP
-  server's actual tool names (see the server's docs). The default
-  list matches `@gongrzhe/server-gmail-autoauth-mcp` v1.1.11. That
-  file's `_disallowed_tools` allows `send_email` only for
-  `--command /morning-digest` in non-dry-run; everything else is denied.
+- **`! Needs authentication`, or an auth error at SDK startup** — the
+  server is registered but never consented. Run
+  `claude mcp login <name>`; the SDK entrypoint is non-interactive and
+  cannot open the consent flow. If consent succeeds but the exchange
+  fails with `client_secret is missing`, see the troubleshooting
+  section in [`mcp-servers.md`](mcp-servers.md).
+- **Digest ran but no email arrived** — delivery is done by `run.py`,
+  not the agent. Confirm `python -m app_sdk.auth --setup` was run and
+  the keyring entry exists (`chief-of-staff-agent-sdk` /
+  `google_oauth_refresh_token`). Then confirm the agent actually
+  emitted the digest block — grep the transcript for `<<<DIGEST-START>>>`.
+  If missing, `/morning-digest` produced text without the markers and
+  `run.py` bailed out.
+- **`No Google refresh token in keyring`** — you skipped
+  `python -m app_sdk.auth --setup`. Run it once; the flow opens a
+  browser for consent.
+- **Plane fetch is slow and burns tokens, or the digest shows raw
+  UUIDs instead of names** — `plane-fetcher`'s `jq` calls are being
+  denied or `jq` is missing. Confirm `jq --version` works, then
+  confirm `.claude/settings.json` is present and allows `Bash(jq *)`
+  and `Bash(mv .cache/*)`. Step 2 degrades quietly here — it falls
+  back to reading the whole 250KB payload through context, so the run
+  still succeeds, just expensively. Step 4 has no fallback, which is
+  why names turn into UUIDs. Note that file rules must be written as
+  `Edit(path)`; a `Write(path)` rule is never matched by file
+  permission checks.
+- **Agent tried to call a Gmail write tool (`create_draft`,
+  `label_*`, `unlabel_*`, `create_label`) and was denied** — correct
+  behavior. Google's official Gmail MCP does not offer a `send_email`
+  tool at all; the six writes it does offer are all on the deny list.
+  Delivery is orchestrator-driven from `run.py`. If your slash
+  command is telling Claude to call any of these, update the command
+  markdown.

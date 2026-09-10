@@ -6,16 +6,30 @@ list. This does **not** draft or send replies — it's a decision aid for
 the user's inbox time. If you want the morning digest instead, use `/morning-digest`.
 
 ## Preconditions
-- Gmail MCP connected.
-- Read-only. Absolutely no `send-email`, `mark-as-read`, `archive`, or
-  `delete` calls under any circumstance.
+- Gmail MCP connected (Google's official server —
+  `search_threads` / `get_thread`).
+- Read-only. Do not draft, label, or otherwise mutate Gmail. Every
+  write the MCP exposes (`create_draft`, `create_label`,
+  `label_message`, `label_thread`, `unlabel_message`, `unlabel_thread`)
+  is denied at the session level. Reply/archive/delete/mark-as-read
+  are not offered by this MCP at all.
 
 ## Instructions
 
-### Step 1: Fetch
+### Step 1: Fetch (via subagent)
 
-Call the gmail MCP to list emails received in the last 24h. Capture
-`id`, `sender`, `subject`, `date`, body snippet (~500 chars).
+Dispatch one `Agent` call with `subagent_type: "gmail-fetcher"`.
+Prompt: "Fetch inbox mail newer than 24h and return the structured
+JSON per your contract."
+
+The subagent runs the thread-based Gmail tools, filters out
+`noreply`/notifications/drafts/sent, and returns
+`{emails: [...], error}` where each email has `msg_id`, `thread_id`,
+`sender`, `sender_domain`, `subject`, `date`, and `snippet`. Do not
+call `mcp__gmail__*` tools directly from this context — the fetcher
+owns raw payload access.
+
+If the subagent returns a non-null `error`, print it and stop.
 
 ### Step 2: Tier
 

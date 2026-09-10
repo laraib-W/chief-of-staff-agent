@@ -10,14 +10,17 @@ Equivalent to `python -m app.run` on `main`, but with Claude driving the
 tool sequencing and composition instead of a fixed LangGraph pipeline.
 
 ## Preconditions
-- MCP servers `gmail`, `gcal`, and `plane` are connected (see
-  `docs/mcp-servers.md`).
+- MCP servers `gmail`, `gcal`, and `plane` are connected — set up and
+  verified by the user (see `docs/mcp-servers.md`). This is a setup
+  note, not a check for you to run: do not probe server health, and do
+  not treat it as a gate before Step 2. Dispatch the fan-out and let
+  each subagent report its own outcome.
 - `goals.yaml` at repo root defines `thresholds` and
   `identity.delivery_address`; `goals.local.yaml` defines
   `plane.projects` (run `/plane-setup` if not).
-- The user has authorized delivery for this run. If invoked in dry-run
-  mode (from the SDK entrypoint), **do not call `send-email`** — print the
-  finished HTML to the transcript instead.
+- Delivery is orchestrator-driven: `app_sdk/run.py` reads the HTML you
+  emit and sends it via the Gmail API. You do **not** call any Gmail
+  write tool — every write tool is denied for this session.
 
 ## Instructions
 
@@ -26,11 +29,17 @@ calculation (today's date, staleness) depends on it.
 
 ### Step 0: Ground the clock
 
-Call the calendar MCP's `get-current-time` (or equivalent) to get the
-authoritative current time and timezone. Extract:
-- Today's date in ISO format
-- Day of week
-- Timezone
+Google's official Calendar MCP does not expose a `get-current-time`
+tool, so ground the clock via `Bash`:
+
+```
+date +'%Y-%m-%d %A %Z'
+```
+
+Extract today's date (ISO), day of week, and timezone from the
+output. The command runs in the machine's local timezone — for a
+scheduled digest that will match `identity.timezone` in `goals.yaml`
+(which you'll read in Step 1 and pass to the calendar-fetcher).
 
 Never guess the day of week from your knowledge cutoff.
 
@@ -62,6 +71,15 @@ Dispatch every fetch through a Sonnet subagent. **Emit every `Agent`
 call in one message** so they run concurrently — do not chain them.
 Each subagent runs read-only, keeps raw payloads out of this context,
 and returns compact structured JSON per its contract.
+
+**Dispatch every subagent unconditionally.** Never skip a fetch
+because you predict it will fail — not because a server looked
+unauthenticated, not because an earlier source errored, not to save
+tokens. A source has failed only when its subagent comes back with a
+non-null `error`; anything else is a guess, and a guess that skips
+the fan-out produces a digest that is wrong rather than degraded. If
+one source is genuinely down, the other two still owe the user a
+digest.
 
 - **Gmail** → one `Agent` call with `subagent_type: "gmail-fetcher"`.
   Prompt: "Fetch inbox mail newer than 24h and return the structured
@@ -101,7 +119,10 @@ state's `bucket` field — the main agent trusts those buckets and
 doesn't reclassify.
 
 If a subagent returns a non-null `error`, record it in
-`fetch_errors[<source>]` and proceed with the other sources.
+`fetch_errors[<source>]` and proceed with the other sources. Record
+the error verbatim — do not generalize one source's failure into a
+claim about the others. Each source's status is independent and is
+established only by its own subagent's return value.
 
 ### Step 3: Deterministic rules
 
@@ -146,29 +167,62 @@ Constraints:
 - If `fetch_errors` is non-empty, prepend the failure banner:
   "Some sources unavailable today: <comma-separated list>."
 
-### Step 6: Deliver (or dry-run)
+### Step 6: Emit the digest for the orchestrator
 
-- **Normal run:** call the gmail MCP's `send-email` with
-  - `to = identity.delivery_address`
-  - `subject = "Morning digest — YYYY-MM-DD"`
-  - `body = <the HTML>`
-  - `content_type = "text/html"` (or the server-specific equivalent)
-- **Dry-run:** the SDK entrypoint sets a permission callback that
-  denies `send-email`. If you get a denial, print the HTML to the
-  transcript with a leading marker `--- DRY-RUN DIGEST ---` and stop.
+Do **not** call any Gmail tool. The orchestrator (`app_sdk/run.py`)
+handles delivery; you produce the payload.
+
+Emit the finished HTML wrapped in these exact markers, each on its
+own line, and nothing else between them:
+
+```
+<<<DIGEST-START>>>
+<the full HTML from Step 5>
+<<<DIGEST-END>>>
+```
+
+`<<<NO-DIGEST>>>` is for a quiet morning, **never** for a broken
+one. Decide with `fetch_errors`:
+
+- **`fetch_errors` is empty and every section is empty** — every
+  source answered, and all of them had nothing. This is the only
+  case that emits `<<<NO-DIGEST>>>`:
+
+  ```
+  <<<NO-DIGEST>>>
+  ```
+
+  on its own line. The orchestrator treats this as "skip send."
+
+- **`fetch_errors` is non-empty but at least one source returned
+  data** — emit the normal digest with the failure banner from
+  Step 5. A partial digest is the expected output of a partial
+  outage, not a reason to skip.
+
+- **Every source is in `fetch_errors`** — emit a digest whose body is
+  just the failure banner plus one line naming each failed source and
+  its error. Do **not** emit `<<<NO-DIGEST>>>`. A silent morning and a
+  dead pipeline look identical from the user's inbox, and only one of
+  them is worth their silence — this run is scheduled, so the email is
+  the only channel that reaches them.
+
+Prefer a short digest over `<<<NO-DIGEST>>>` whenever any section has
+content.
 
 ### Step 7: Report
 
-After delivery (or dry-run print), summarize in ≤ 3 lines to the
+After emitting the digest block, summarize in ≤ 3 lines to the
 transcript:
 - Number of priorities, emails processed, calendar events, Plane
   issues, and any `fetch_errors`.
-- The message ID returned by `send-email`, or `dry-run` if skipped.
+- Do not report a message ID — `app_sdk/run.py` prints the delivery
+  outcome after the run completes.
 
 ## Guardrails
 
-- **Never `send-email` more than once per run.** If the send fails,
-  report the error — do not retry.
+- **Never call any Gmail write tool** (`send_email`, `draft_email`,
+  `modify_email`, filter/label mutations, etc.). Every write is denied
+  at the session level. Delivery is orchestrator-driven — see Step 6.
 - **Never delete, mark-as-read, or reply to email.**
 - **Never mutate Plane** (no state changes, comments, assignee edits).
 - **Never call `create-event` or `update-event` on the calendar.**

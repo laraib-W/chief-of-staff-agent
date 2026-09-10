@@ -11,8 +11,8 @@
 # it does not appear here.
 
 identity:
-  user_name: TODO           # e.g. "Laraib"
-  delivery_address: TODO    # e.g. "you@example.com" — where the digest is sent
+  user_name: Laraib
+  delivery_address: laraib.waheed@arbisoft.com
   timezone: Asia/Karachi    # IANA timezone; used to bound "today"
 
 gmail:

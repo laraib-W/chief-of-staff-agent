@@ -20,7 +20,9 @@ and the member cache. This skill's job is to fan out the subagent,
 aggregate the responses, and print the report.
 
 ## Preconditions
-- Plane MCP connected (`claude mcp list` shows `plane` connected).
+- Plane MCP connected. The user verifies this at setup time; don't
+  shell out to check it — just call the tools and degrade if they're
+  unavailable.
 - `goals.local.yaml` contains at least one project under
   `plane.projects` with an `identifier` per entry (run `/plane-setup`
   if not).

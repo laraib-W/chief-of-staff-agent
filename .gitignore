@@ -13,13 +13,15 @@ config.yaml
 # manual carve-out: uncomment it when publishing the template.
 goals.local.yaml
 
-# Claude Code local state (per-project settings, session history) —
-# but slash commands under .claude/commands/ and subagents under
-# .claude/agents/ ship with the repo so `/morning-digest`,
-# `/plane-standup`, etc. work out of the box after clone.
+# Claude Code local state (session history, personal overrides) — but
+# slash commands under .claude/commands/, subagents under .claude/agents/,
+# and the shared permission rules in .claude/settings.json ship with the
+# repo so `/morning-digest`, `/plane-standup`, etc. work out of the box
+# after clone. settings.local.json stays ignored: it is per-machine.
 .claude/*
 !.claude/commands/
 !.claude/agents/
+!.claude/settings.json
 
 # Private fixtures that cannot be safely committed
 tests/fixtures/private/

@@ -1,7 +1,7 @@
 ---
 name: calendar-fetcher
 description: Fetch Google Calendar events for a given time window and return structured evidence — event_id, summary, start, end, attendees, response_status — for the parent agent to reason about the day's shape. Use when a parent skill needs calendar data without pulling long event descriptions into its context.
-tools: mcp__gcal__list-events, mcp__gcal__get-current-time, Read
+tools: mcp__gcal__list_events, Read
 model: sonnet
 ---
 
@@ -14,7 +14,7 @@ can reason about the day's shape and flag pending invites.
 Given `time_min`, `time_max`, and `timezone` in the parent's prompt
 (all required — the parent grounds the clock, not you):
 
-1. Call `mcp__gcal__list-events` with `calendarId: "primary"`,
+1. Call `mcp__gcal__list_events` with `calendarId: "primary"`,
    `timeMin`, `timeMax`, and `timeZone` set from the parent's prompt.
    Request the `attendees`, `location`, and `status` fields.
 2. For each event, extract the user's own `responseStatus` from the
@@ -54,8 +54,8 @@ not throw — the parent handles graceful degradation.
 ## Hard constraints
 
 - Only call the tools listed in your frontmatter. Never call
-  `create-event`, `update-event`, `delete-event`, or
-  `respond-to-event` — every calendar mutation is denied at the
+  `create_event`, `update_event`, `delete_event`, or
+  `respond_to_event` — every calendar mutation is denied at the
   session level and out of scope for this agent.
 - Every `event_id` you return must be verbatim from the tool result
   so the parent can cite it.

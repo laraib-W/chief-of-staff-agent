@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS LaunchAgent that runs `uv run python -m app_sdk.run` daily and
+  delivers the morning digest via the Gmail API.
+
+  Do not use this file directly — placeholders are resolved by
+  `scripts/install-schedule.sh`, which writes the resulting plist to
+  ~/Library/LaunchAgents/com.chief-of-staff-agent-sdk.plist and loads it.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.chief-of-staff-agent-sdk</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__UV_BIN__</string>
+    <string>run</string>
+    <string>python</string>
+    <string>-m</string>
+    <string>app_sdk.run</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__REPO_ROOT__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__PATH__</string>
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>__HOUR__</integer>
+    <key>Minute</key>
+    <integer>__MINUTE__</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/chief-of-staff-agent-sdk.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/chief-of-staff-agent-sdk.err</string>
+</dict>
+</plist>

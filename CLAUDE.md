@@ -70,14 +70,23 @@ commands. The commands assume these three servers are connected:
 
 | Server   | Purpose                                | Sample tools                                    |
 |----------|----------------------------------------|-------------------------------------------------|
-| gmail    | Read the last 24h; send the digest     | `list-emails`, `get-email`, `send-email`        |
-| gcal     | Today's events + 7-day look-ahead      | `list-events`, `get-current-time`               |
+| gmail    | Read the last 24h (thread-based)       | `search_threads`, `get_thread`                  |
+| gcal     | Today's events + 7-day look-ahead      | `list_events`, `get_event`                      |
 | plane    | Issues, states, assignees per project  | `list_project_issues`, `list_states`, `get_workspace_members` |
 
+Gmail is Google's official MCP at `https://gmailmcp.googleapis.com/mcp/v1`
+— thread-based, no send capability. Delivery is not an MCP tool call:
+`app_sdk/run.py` reads the HTML you emit between the
+`<<<DIGEST-START>>>` / `<<<DIGEST-END>>>` markers and sends it via
+the Gmail API (see `docs/mcp-servers.md` for the setup and rationale).
+
 Tool names above are indicative — the exact names come from the MCP
-servers you install. If `claude mcp list` shows a server missing or
-errored, tell the user to fix it before proceeding rather than trying
-to work around it.
+servers you install. **Never shell out to probe server health** —
+`claude mcp list` is a command the *user* runs during setup, not a
+preflight for you. Connected servers surface as callable tools; that
+is your only signal. If a tool you need is absent, or a call errors,
+do not work around it: degrade per §1.3 and name the failed source in
+the banner.
 
 ### Rules of engagement
 
@@ -87,8 +96,10 @@ to work around it.
 - **Bound each fetch.** Cap Gmail at last 24h. Cap Calendar at today +
   7-day look-ahead. Cap Plane at the configured project IDs (see
   `goals.yaml` → `plane.project_ids`).
-- **One send.** The last tool call of the run is `send-email` with the
-  finished HTML digest. Never send more than one email per run.
+- **No Gmail write tools.** Every write the MCP exposes (`create_draft`,
+  `create_label`, `label_*`, `unlabel_*`) is denied at the session
+  level. The last step of the run is emitting the digest between the
+  markers — `app_sdk/run.py` handles the single send.
 
 ---
 
