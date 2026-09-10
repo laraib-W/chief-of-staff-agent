@@ -105,14 +105,23 @@ the banner.
 
 ## Part 3: Config and state
 
-- **`goals.yaml`** — user's quarterly objectives, Plane project IDs to
-  watch, thresholds (inactivity days, overdue grace). This is the source
+- **`goals.yaml`** — identity (name, delivery address, timezone),
+  quarterly objectives, trusted email domains, and thresholds
+  (`inactivity_days`, `calendar_lookahead_days`). This is the source
   of truth for "what should I be prioritizing?" — reference it when
-  ranking.
-- **`schedules.yaml`** — cadence config (e.g. run_time). Reference-only;
-  the actual scheduling is done by cron/launchd.
+  ranking. It does **not** hold Plane project IDs.
+- **`goals.local.yaml`** — gitignored, machine-local. Holds
+  `plane.projects` (each with `id`, `identifier`, `name`), written by
+  `/plane-setup`. This is where the fetchers read which projects to
+  watch. If it's missing, tell the user to run `/plane-setup` rather
+  than falling back to a workspace-wide `get_projects` scan.
 - **`.env`** — API tokens (Anthropic, Plane, Google OAuth). Never echo
   values from this file.
+
+Scheduling is not configured in a file you read. The daily run is a
+launchd job installed by `scripts/install-schedule.sh` (time set via
+`HOUR` / `MINUTE` env vars, default 08:00 local); on Linux it's cron.
+Nothing about cadence is your concern at run time.
 
 ---
 
