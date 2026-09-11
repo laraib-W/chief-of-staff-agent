@@ -158,8 +158,17 @@ GOOGLE_OAUTH_CLIENT_SECRET=<from step 4f>
 PLANE_API_TOKEN=<from step 3a>
 PLANE_WORKSPACE_SLUG=<from step 3b>
 PLANE_API_HOST_URL=<from step 3c>
-ANTHROPIC_API_KEY=<https://console.anthropic.com>
 ```
+
+There is no `ANTHROPIC_API_KEY` here on purpose. This branch never calls
+the Anthropic API directly — `app_sdk/run.py` drives the Claude Code
+CLI, which authenticates with whatever account you are already logged
+into (`claude` → `/login`). Only the LangGraph pipeline in `app/` on
+`main` reads that variable.
+
+> Setting `ANTHROPIC_API_KEY` anyway is not harmless: Claude Code
+> prefers it when present, so every run would bill per-token against
+> the API console instead of your Claude subscription.
 
 `.env` is gitignored. Never commit it, and never paste its values into
 a chat or an issue.

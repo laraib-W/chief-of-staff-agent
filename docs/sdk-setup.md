@@ -96,7 +96,10 @@ orchestrator-owned and deterministic.
    `fields` narrowing, and the member list ~15KB). Install with `brew install jq` /
    `apt install jq`. Without it, member resolution fails and the
    digest prints raw UUIDs instead of names.
-2. **Anthropic API key** — set `ANTHROPIC_API_KEY` in `.env`.
+2. **A logged-in Claude Code CLI** — run `claude` once and `/login`
+   if you have not. The SDK entrypoint spawns the CLI, which uses that
+   session; no `ANTHROPIC_API_KEY` is needed. Set one only if you
+   deliberately want API-console billing instead of your subscription.
 3. **Google OAuth client** — same Desktop-app OAuth client used by
    `app/` on main (`GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` in `.env`).
    See [`google-oauth-setup.md`](google-oauth-setup.md).
