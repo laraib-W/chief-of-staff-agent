@@ -227,35 +227,20 @@ short-circuits with "Already authenticated" when a token exists.
 
 ## Step 8 — Configure the agent
 
-**8a. Create `goals.local.yaml`** — your identity lives here, not in
-`goals.yaml`:
+**8a. Create your config:**
 
 ```bash
-cp goals.local.example.yaml goals.local.yaml
+cp goals.example.yaml goals.yaml
 ```
 
-Then fill in the three values:
+Then fill in every `TODO`:
 
 ```yaml
 identity:
   user_name: Your Name
   delivery_address: you@example.com   # where the digest is emailed
   timezone: Asia/Karachi              # IANA name; bounds "today"
-```
 
-`goals.local.yaml` is gitignored and is merged over `goals.yaml` by
-`app_sdk/run.py`, top-level key by key. Identity is kept out of the
-committed `goals.yaml` deliberately: that file is tracked, so filling it
-in there would eventually be committed and a fresh clone would inherit
-someone else's name and delivery address. (That is not hypothetical —
-it happened in this repo, which is why the block moved.)
-
-Skip this and the run stops with a named error rather than mailing the
-digest somewhere wrong.
-
-**8b. Review `goals.yaml`** — shared defaults, usually fine as shipped:
-
-```yaml
 gmail:
   trusted_domains:
     - yourcompany.com                 # +1 priority when ranking
@@ -265,12 +250,25 @@ thresholds:
   calendar_lookahead_days: 7
 
 objectives:
-  - key: q4-example
+  - key: q4-latency
     title: <one-sentence quarterly objective>
     why: <why this matters now>
 ```
 
-**8c. Pick your Plane projects.** Start Claude Code in the repo and
+`goals.yaml` is gitignored; `goals.example.yaml` is the committed
+template. Every value in it is specific to you — your name, your inbox,
+your employer's domain, your objectives — so the live copy is never
+tracked.
+
+> It used to work the other way: `goals.yaml` was committed with `TODO`
+> placeholders, and nobody was supposed to commit the filled-in version.
+> That lasted two commits before a real name and delivery address were
+> published. Ignoring the live file is what actually prevents it.
+
+Skip this and the run stops with a named error rather than mailing your
+digest somewhere wrong.
+
+**8b. Pick your Plane projects.** Start Claude Code in the repo and
 run the setup command:
 
 ```bash
@@ -281,7 +279,7 @@ claude
 ```
 
 It lists your workspace's projects, you reply with the numbers you
-want, and it writes them to `goals.local.yaml` (gitignored):
+want, and it writes them to `goals.yaml` (gitignored):
 
 ```yaml
 plane:
@@ -345,8 +343,8 @@ script refuses to run there.
 - [ ] `jq --version`, `uv --version`, `claude --version` all work
 - [ ] `claude mcp list` shows gmail, gcal, plane as `✔ Connected`
 - [ ] `.env` has all five values
-- [ ] `goals.local.yaml` exists with `identity` filled in (no `TODO` left)
-- [ ] `goals.local.yaml` exists with at least one project
+- [ ] `goals.yaml` exists, copied from the example, with no `TODO` left
+- [ ] `goals.yaml` lists at least one project under `plane.projects`
 - [ ] `uv run python -m app_sdk.run --dry-run` prints a digest
 - [ ] The digest names teammates, not raw UUIDs
 - [ ] A real run lands in your inbox

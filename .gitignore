@@ -7,11 +7,12 @@
 # Real user config (see config.example.yaml for the template)
 config.yaml
 
-# experiment/claude-agent-sdk: goals.yaml holds identity + Plane IDs.
-# Commit only the template shape by keeping the placeholder version;
-# never commit the filled-in file. The `!goals.yaml` line below is a
-# manual carve-out: uncomment it when publishing the template.
-goals.local.yaml
+# Live config: identity, trusted domains, objectives, Plane projects.
+# Copied from the committed goals.example.yaml and never committed itself.
+# An earlier scheme kept goals.yaml tracked with TODO placeholders and
+# relied on nobody committing the filled-in version; that failed (see the
+# history of goals.yaml). Ignoring the live file is what actually works.
+goals.yaml
 
 # Claude Code local state (session history, personal overrides) — but
 # slash commands under .claude/commands/, subagents under .claude/agents/,

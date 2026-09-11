@@ -13,8 +13,8 @@ CLAUDE.md              # persona + non-negotiables (read-only, cited)
 .claude/commands/triage.md          # read-only inbox tiering
 .claude/commands/plane-standup.md
 .claude/commands/plane-setup.md
-goals.yaml             # shared defaults: thresholds, trusted domains, objectives
-goals.local.yaml       # gitignored: identity + Plane projects (merged over the above)
+goals.example.yaml     # committed template
+goals.yaml             # gitignored: your identity, thresholds, objectives, Plane projects
 app_sdk/__init__.py
 app_sdk/run.py         # `python -m app_sdk.run` — cron/launchd entry
 docs/sdk-setup.md      # this file
@@ -116,7 +116,7 @@ orchestrator-owned and deterministic.
    shows both as `✔ Connected` rather than
    `! Needs authentication`.
 7. **`goals.yaml` filled in** — replace every `TODO` at repo root.
-   `identity.delivery_address` in `goals.local.yaml` is what `run.py`
+   `identity.delivery_address` in `goals.yaml` is what `run.py`
    sends the digest to.
 8. **Permission rules** — nothing to do; they ship in
    `.claude/settings.json`, which is committed precisely so a fresh

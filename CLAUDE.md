@@ -105,18 +105,19 @@ the banner.
 
 ## Part 3: Config and state
 
-- **`goals.yaml`** — committed shared defaults: quarterly objectives,
-  trusted email domains, and thresholds (`inactivity_days`,
-  `calendar_lookahead_days`). Reference it when ranking. It holds
-  neither identity nor Plane project IDs.
-- **`goals.local.yaml`** — gitignored, machine-local, merged over
-  `goals.yaml` top-level key by key. Holds `identity` (`user_name`,
-  `delivery_address`, `timezone`) and `plane.projects` (each with
-  `id`, `identifier`, `name`, written by `/plane-setup`). Identity is
-  here rather than in the committed file so a fresh clone cannot
-  inherit someone else's name and delivery address. If it's missing,
-  tell the user to copy `goals.local.example.yaml` and run
-  `/plane-setup` — never fall back to a workspace-wide project scan.
+- **`goals.yaml`** — the user's only config file. Gitignored; copied
+  from the committed `goals.example.yaml`. Holds `identity`
+  (`user_name`, `delivery_address`, `timezone`), `gmail.trusted_domains`,
+  `thresholds` (`inactivity_days`, `calendar_lookahead_days`),
+  `objectives`, and `plane.projects` (each `{id, identifier, name}`,
+  written by `/plane-setup`). This is the source of truth for "what
+  should I be prioritizing?" — reference it when ranking.
+
+  Everything in it is personal, which is why the live file is never
+  committed. If it is missing, or a value is still `TODO`, tell the
+  user to run `cp goals.example.yaml goals.yaml` and `/plane-setup` —
+  never guess an identity, and never fall back to a workspace-wide
+  project scan.
 - **`.env`** — API tokens (Anthropic, Plane, Google OAuth). Never echo
   values from this file.
 

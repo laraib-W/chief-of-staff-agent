@@ -51,7 +51,6 @@ except ImportError as exc:  # pragma: no cover — install-time check
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GOALS_PATH = REPO_ROOT / "goals.yaml"
-GOALS_LOCAL_PATH = REPO_ROOT / "goals.local.yaml"
 
 DIGEST_START = "<<<DIGEST-START>>>"
 DIGEST_END = "<<<DIGEST-END>>>"
@@ -133,25 +132,19 @@ class GoalsConfigError(Exception):
 
 
 def _load_goals() -> dict:
-    """Merge goals.local.yaml over goals.yaml, top-level key by key.
+    """Load goals.yaml — the one, gitignored, per-person config file.
 
-    goals.yaml is committed and holds shared defaults (thresholds, trusted
-    domains, objectives). goals.local.yaml is gitignored and holds anything
-    specific to one person or machine — `identity` and `plane.projects`.
-    Keeping identity out of the committed file means a fresh clone cannot
-    silently inherit someone else's name and delivery address; it fails
-    loudly instead.
+    Everything in it is specific to one person: name, delivery address,
+    timezone, employer domain, objectives, Plane projects. The committed
+    template is goals.example.yaml; the live file is never tracked, which
+    is what stops a fresh clone inheriting someone else's identity.
     """
     if not GOALS_PATH.exists():
         raise GoalsConfigError(
-            f"goals.yaml not found at {GOALS_PATH}. It ships with the repo — "
-            "restore it with `git checkout goals.yaml`."
+            f"goals.yaml not found at {GOALS_PATH}. Create it with "
+            "`cp goals.example.yaml goals.yaml`, then fill in the TODOs."
         )
-    merged = yaml.safe_load(GOALS_PATH.read_text()) or {}
-    if GOALS_LOCAL_PATH.exists():
-        local = yaml.safe_load(GOALS_LOCAL_PATH.read_text()) or {}
-        merged.update(local)
-    return merged
+    return yaml.safe_load(GOALS_PATH.read_text()) or {}
 
 
 def _resolve_delivery_address(override: str | None) -> str:
@@ -162,9 +155,9 @@ def _resolve_delivery_address(override: str | None) -> str:
     address = identity.get("delivery_address")
     if not address or address == "TODO":
         raise GoalsConfigError(
-            "identity.delivery_address is not set. Create goals.local.yaml "
-            "with an `identity:` block (see docs/getting-started.md Step 8), "
-            "or pass --to <address> on the command line."
+            "goals.yaml → identity.delivery_address is not set. Fill it "
+            "in (see docs/getting-started.md Step 8), or pass --to "
+            "<address> on the command line."
         )
     return address
 
@@ -372,7 +365,7 @@ def main() -> None:
         default=None,
         help=(
             "Override the digest recipient. Defaults to "
-            "goals.local.yaml → identity.delivery_address."
+            "goals.yaml → identity.delivery_address."
         ),
     )
     args = parser.parse_args()

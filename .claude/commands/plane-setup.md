@@ -3,7 +3,7 @@
 ## Description
 One-time interactive setup. Lists every project in your Plane workspace,
 lets you choose which ones the morning digest should include, and writes
-your picks to `goals.local.yaml` (gitignored). Re-run any time to change
+your picks to `goals.yaml` (gitignored). Re-run any time to change
 the selection.
 
 Replaces hand-editing UUIDs into `goals.yaml`.
@@ -48,9 +48,9 @@ Reply with numbers to include (comma-separated), e.g. "1, 3" — or "all".
 - Anything unparseable → print one clarification asking for numbers or
   `all`, then stop if the second reply also fails.
 
-### Step 4: Write `goals.local.yaml`
+### Step 4: Write `goals.yaml`
 
-Merge the selection into `goals.local.yaml` at repo root. Shape:
+Merge the selection into `goals.yaml` at repo root. Shape:
 
 ```yaml
 plane:
@@ -75,7 +75,7 @@ Rules:
 Print:
 
 ```
-Saved <N> project(s) to goals.local.yaml:
+Saved <N> project(s) to goals.yaml:
   - <name>
   - <name>
 
@@ -84,7 +84,8 @@ Run /plane-standup or /morning-digest to use them.
 
 ## Guardrails
 - Read-only against Plane — one GET against the projects endpoint.
-- Never write to `goals.yaml` (committed) — only `goals.local.yaml`
+- Write only `plane.projects`; preserve every other key in `goals.yaml`
+  (identity, gmail, thresholds, objectives are the user's)
   (gitignored).
 - Never call any Plane write tool (`create_*`, `update_*`, `delete_*`,
   `add_*_comment`, etc.).

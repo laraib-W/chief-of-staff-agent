@@ -1,7 +1,7 @@
 # /plane-standup — Per-Project Team Snapshot
 
 ## Description
-Standalone Plane-only view: for each project in `goals.local.yaml
+Standalone Plane-only view: for each project in `goals.yaml
 → plane.projects`, produce two sections:
 
 1. **PER-PERSON ACTIVE-STATE COUNTS** — for each assignee, a breakdown
@@ -23,7 +23,7 @@ aggregate the responses, and print the report.
 - Plane MCP connected. The user verifies this at setup time; don't
   shell out to check it — just call the tools and degrade if they're
   unavailable.
-- `goals.local.yaml` contains at least one project under
+- `goals.yaml` contains at least one project under
   `plane.projects` with an `identifier` per entry (run `/plane-setup`
   if not).
 - `goals.yaml` defines `thresholds.inactivity_days`.
@@ -34,14 +34,14 @@ aggregate the responses, and print the report.
 
 Use today's date from the environment (already available to Claude).
 If a calendar MCP is connected, use its `get_current_time`-style tool
-to confirm the timezone from `goals.local.yaml → identity.timezone`.
+to confirm the timezone from `goals.yaml → identity.timezone`.
 
 ### Step 2: Read config
 
 - From `goals.yaml`: `thresholds.inactivity_days`, and
   `plane.ignore_list` if present (list of display-name strings; each
   matching assignee is dropped from every issue).
-- From `goals.local.yaml`: `plane.projects` (list of
+- From `goals.yaml`: `plane.projects` (list of
   `{id, identifier, name}`).
 
 If any project entry is missing `identifier`, tell the user to
@@ -59,7 +59,7 @@ Issue one `Agent` call with `subagent_type: "plane-fetcher"` **per
 project**, in a **single tool-call batch** so the runtime
 parallelises them. Each prompt must supply:
 
-- `project_id` — the project UUID from `goals.local.yaml`.
+- `project_id` — the project UUID from `goals.yaml`.
 - `project_identifier` — the readable prefix from the same entry.
 - `inactivity_days` — from `goals.yaml → thresholds.inactivity_days`.
 - `ignore_list` — from `goals.yaml → plane.ignore_list` when defined,

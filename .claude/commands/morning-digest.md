@@ -16,7 +16,7 @@ tool sequencing and composition instead of a fixed LangGraph pipeline.
   not treat it as a gate before Step 2. Dispatch the fan-out and let
   each subagent report its own outcome.
 - `goals.yaml` at repo root defines `thresholds` and
-  `identity.delivery_address`; `goals.local.yaml` defines
+  `identity.delivery_address`; `goals.yaml` defines
   `plane.projects` (run `/plane-setup` if not).
 - Delivery is orchestrator-driven: `app_sdk/run.py` reads the HTML you
   emit and sends it via the Gmail API. You do **not** call any Gmail
@@ -38,33 +38,32 @@ date +'%Y-%m-%d %A %Z'
 
 Extract today's date (ISO), day of week, and timezone from the
 output. The command runs in the machine's local timezone — for a
-scheduled digest that will match `identity.timezone` in `goals.local.yaml`
+scheduled digest that will match `identity.timezone` in `goals.yaml`
 (which you'll read in Step 1 and pass to the calendar-fetcher).
 
 Never guess the day of week from your knowledge cutoff.
 
 ### Step 1: Read config
 
-From `goals.yaml`:
-- `thresholds.inactivity_days`
-- `plane.ignore_list` (optional; passed through to plane-fetcher)
-
-From `goals.local.yaml` (gitignored; merged over `goals.yaml`):
+From `goals.yaml` (gitignored; the user's only config file):
 - `identity.delivery_address`, `identity.user_name`,
   `identity.timezone`
+- `thresholds.inactivity_days`
+- `plane.ignore_list` (optional; passed through to plane-fetcher)
 - `plane.projects` — list of `{id, identifier, name}`. Each entry
   is one plane-fetcher invocation in Step 2.
 
-If `goals.local.yaml` is missing, stop and tell the user to copy
-`goals.local.example.yaml` and run `/plane-setup`. Do not guess an
-identity or a project list.
+If `goals.yaml` is missing, or any value is still `TODO`, stop and
+tell the user to run `cp goals.example.yaml goals.yaml`, fill it in,
+and run `/plane-setup`. Never guess an identity or a project list —
+a wrong delivery address mails their digest to a stranger.
 
 The Plane workspace itself is scoped by the plane MCP server's env
 vars (see `docs/mcp-servers.md`), so no `workspace_slug` is needed
 in main context.
 
 If `goals.yaml` is missing or malformed, stop and tell the user to
-run `docs/setup-guide.md` step 3. If `goals.local.yaml` is missing
+run `docs/setup-guide.md` step 3. If `goals.yaml` is missing
 or `plane.projects` is empty, tell the user to run `/plane-setup`
 and stop. If any project entry lacks `identifier`, tell the user to
 re-run `/plane-setup` (older setups didn't capture it).
@@ -93,10 +92,10 @@ digest.
   (today 00:00 → today+`calendar_lookahead_days` 23:59, both in the
   user's timezone), and `timezone`. Returns `{events: [...], error}`.
 - **Plane** → one `Agent` call with `subagent_type: "plane-fetcher"`
-  **per project** in `goals.local.yaml → plane.projects`. Each prompt
+  **per project** in `goals.yaml → plane.projects`. Each prompt
   must supply:
   - `project_id` (uuid) and `project_identifier` (short prefix, e.g.
-    `ARBISOFTOPEN`) from `goals.local.yaml` — the fetcher will not
+    `ARBISOFTOPEN`) from `goals.yaml` — the fetcher will not
     call the `project` tool on its own (it 404s on self-hosted CE).
   - `inactivity_days` from `goals.yaml → thresholds.inactivity_days`
     so the subagent can compute `is_stuck` and

@@ -18,7 +18,7 @@ same output contract; changes here affect both skills.
 Required:
 - `project_id` — the project UUID.
 - `project_identifier` — the readable prefix, e.g. `ARBISOFTOPEN`.
-  Comes from `goals.local.yaml → plane.projects[i].identifier`. Used
+  Comes from `goals.yaml → plane.projects[i].identifier`. Used
   to build `readable_id = f"{project_identifier}-{sequence_id}"`.
 - `inactivity_days` — integer threshold from
   `goals.yaml → thresholds.inactivity_days`, for the per-issue
