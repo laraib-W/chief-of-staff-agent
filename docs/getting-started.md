@@ -227,14 +227,35 @@ short-circuits with "Already authenticated" when a token exists.
 
 ## Step 8 — Configure the agent
 
-**9a. Edit `goals.yaml`** and replace every `TODO`:
+**8a. Create `goals.local.yaml`** — your identity lives here, not in
+`goals.yaml`:
+
+```bash
+cp goals.local.example.yaml goals.local.yaml
+```
+
+Then fill in the three values:
 
 ```yaml
 identity:
   user_name: Your Name
   delivery_address: you@example.com   # where the digest is emailed
   timezone: Asia/Karachi              # IANA name; bounds "today"
+```
 
+`goals.local.yaml` is gitignored and is merged over `goals.yaml` by
+`app_sdk/run.py`, top-level key by key. Identity is kept out of the
+committed `goals.yaml` deliberately: that file is tracked, so filling it
+in there would eventually be committed and a fresh clone would inherit
+someone else's name and delivery address. (That is not hypothetical —
+it happened in this repo, which is why the block moved.)
+
+Skip this and the run stops with a named error rather than mailing the
+digest somewhere wrong.
+
+**8b. Review `goals.yaml`** — shared defaults, usually fine as shipped:
+
+```yaml
 gmail:
   trusted_domains:
     - yourcompany.com                 # +1 priority when ranking
@@ -249,7 +270,7 @@ objectives:
     why: <why this matters now>
 ```
 
-**9b. Pick your Plane projects.** Start Claude Code in the repo and
+**8c. Pick your Plane projects.** Start Claude Code in the repo and
 run the setup command:
 
 ```bash
@@ -323,7 +344,8 @@ script refuses to run there.
 
 - [ ] `jq --version`, `uv --version`, `claude --version` all work
 - [ ] `claude mcp list` shows gmail, gcal, plane as `✔ Connected`
-- [ ] `.env` has all five values; no `TODO` left in `goals.yaml`
+- [ ] `.env` has all five values
+- [ ] `goals.local.yaml` exists with `identity` filled in (no `TODO` left)
 - [ ] `goals.local.yaml` exists with at least one project
 - [ ] `uv run python -m app_sdk.run --dry-run` prints a digest
 - [ ] The digest names teammates, not raw UUIDs

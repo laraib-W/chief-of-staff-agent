@@ -105,16 +105,18 @@ the banner.
 
 ## Part 3: Config and state
 
-- **`goals.yaml`** — identity (name, delivery address, timezone),
-  quarterly objectives, trusted email domains, and thresholds
-  (`inactivity_days`, `calendar_lookahead_days`). This is the source
-  of truth for "what should I be prioritizing?" — reference it when
-  ranking. It does **not** hold Plane project IDs.
-- **`goals.local.yaml`** — gitignored, machine-local. Holds
-  `plane.projects` (each with `id`, `identifier`, `name`), written by
-  `/plane-setup`. This is where the fetchers read which projects to
-  watch. If it's missing, tell the user to run `/plane-setup` rather
-  than falling back to a workspace-wide `get_projects` scan.
+- **`goals.yaml`** — committed shared defaults: quarterly objectives,
+  trusted email domains, and thresholds (`inactivity_days`,
+  `calendar_lookahead_days`). Reference it when ranking. It holds
+  neither identity nor Plane project IDs.
+- **`goals.local.yaml`** — gitignored, machine-local, merged over
+  `goals.yaml` top-level key by key. Holds `identity` (`user_name`,
+  `delivery_address`, `timezone`) and `plane.projects` (each with
+  `id`, `identifier`, `name`, written by `/plane-setup`). Identity is
+  here rather than in the committed file so a fresh clone cannot
+  inherit someone else's name and delivery address. If it's missing,
+  tell the user to copy `goals.local.example.yaml` and run
+  `/plane-setup` — never fall back to a workspace-wide project scan.
 - **`.env`** — API tokens (Anthropic, Plane, Google OAuth). Never echo
   values from this file.
 

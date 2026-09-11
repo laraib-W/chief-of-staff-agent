@@ -34,7 +34,7 @@ aggregate the responses, and print the report.
 
 Use today's date from the environment (already available to Claude).
 If a calendar MCP is connected, use its `get_current_time`-style tool
-to confirm the timezone from `goals.yaml → identity.timezone`.
+to confirm the timezone from `goals.local.yaml → identity.timezone`.
 
 ### Step 2: Read config
 

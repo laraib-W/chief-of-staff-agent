@@ -1,19 +1,18 @@
-# goals.yaml — source of truth for identity, thresholds, and preferences.
+# goals.yaml — shared defaults. Committed; safe for everyone to use as-is.
+#
+# Anything specific to one person or machine lives in `goals.local.yaml`
+# (gitignored): `identity` and `plane.projects`. app_sdk/run.py merges that
+# file over this one, top-level key by key.
+#
+# identity is deliberately NOT here. This file is committed, so a shared
+# identity would mean a fresh clone silently mails someone else's digest to
+# someone else's address. Copy goals.local.example.yaml instead — see
+# docs/getting-started.md Step 8.
 #
 # Read by:
 #   - .claude/commands/morning-digest.md (all sections)
 #   - .claude/commands/plane-standup.md (thresholds)
-#   - app_sdk/run.py (identity for logging)
-#
-# Plane project selection lives in `goals.local.yaml` (gitignored) —
-# run `/plane-setup` once to populate it. The Plane workspace itself
-# is scoped by the MCP server's env vars (see docs/mcp-servers.md), so
-# it does not appear here.
-
-identity:
-  user_name: Laraib
-  delivery_address: laraib.waheed@arbisoft.com
-  timezone: Asia/Karachi    # IANA timezone; used to bound "today"
+#   - app_sdk/run.py
 
 gmail:
   # Emails from these domains get a +1 priority boost in /morning-digest ranking.

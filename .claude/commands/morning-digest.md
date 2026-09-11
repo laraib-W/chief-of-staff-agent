@@ -38,7 +38,7 @@ date +'%Y-%m-%d %A %Z'
 
 Extract today's date (ISO), day of week, and timezone from the
 output. The command runs in the machine's local timezone — for a
-scheduled digest that will match `identity.timezone` in `goals.yaml`
+scheduled digest that will match `identity.timezone` in `goals.local.yaml`
 (which you'll read in Step 1 and pass to the calendar-fetcher).
 
 Never guess the day of week from your knowledge cutoff.
@@ -48,12 +48,16 @@ Never guess the day of week from your knowledge cutoff.
 From `goals.yaml`:
 - `thresholds.inactivity_days`
 - `plane.ignore_list` (optional; passed through to plane-fetcher)
+
+From `goals.local.yaml` (gitignored; merged over `goals.yaml`):
 - `identity.delivery_address`, `identity.user_name`,
   `identity.timezone`
-
-From `goals.local.yaml`:
 - `plane.projects` — list of `{id, identifier, name}`. Each entry
   is one plane-fetcher invocation in Step 2.
+
+If `goals.local.yaml` is missing, stop and tell the user to copy
+`goals.local.example.yaml` and run `/plane-setup`. Do not guess an
+identity or a project list.
 
 The Plane workspace itself is scoped by the plane MCP server's env
 vars (see `docs/mcp-servers.md`), so no `workspace_slug` is needed
