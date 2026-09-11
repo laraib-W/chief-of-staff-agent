@@ -112,7 +112,7 @@ digest.
   project_identifier=<prefix>, inactivity_days=<N>[, ignore_list=[...]]
   and return the structured JSON per your contract." Returns
   `{states, issues, members, error}`. Each
-  issue carries `bucket` (via its `state_id` → `states[].bucket`
+  issue carries `state_name` (→ `states[].bucket`
   lookup), `age_in_state_days`, and `is_stuck` — the subagent has
   already applied the v0.1.5 hydration workaround, so no extra
   Plane calls are needed in main context.

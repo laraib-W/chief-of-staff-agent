@@ -173,23 +173,16 @@ into (`claude` → `/login`). Only the LangGraph pipeline in `app/` on
 `.env` is gitignored. Never commit it, and never paste its values into
 a chat or an issue.
 
-## Step 6 — Register and authenticate the three MCP servers
+## Step 6 — Register and authenticate the MCP servers
 
 ```bash
 ./scripts/setup-mcps.sh --login
 ```
 
-The script reads `.env`, registers `gmail`, `gcal`, and `plane` at user
-scope, and opens a browser for the two Google consent flows. It is
-idempotent — safe to re-run.
+The script reads `.env`, registers `gmail` and `gcal` at user scope, and
+opens a browser for each consent flow. It is idempotent — safe to re-run.
 
-`plane` is registered as `uvx plane-mcp-server stdio` — `uvx` fetches
-v0.3.x from PyPI on first use, so there is nothing to install. Do
-**not** install the npm `@makeplane/plane-mcp-server`; that is an
-unmaintained 0.1.5 TypeScript build with a different, flat tool surface
-these skills do not target.
-
-Confirm all three:
+Confirm both:
 
 ```bash
 claude mcp list
@@ -199,6 +192,12 @@ You want `✔ Connected` on each. **`! Needs authentication` means
 registered but not consented** — run `claude mcp login gmail` and
 `claude mcp login gcal`. Do this before any scheduled run: the SDK
 entrypoint is non-interactive and cannot open a consent flow.
+
+> Plane is not in this list and needs no registration. It is read
+> through `scripts/plane.sh` (GET-only, against the v1 REST API) using
+> the credentials already in `.env`. See
+> [`mcp-servers.md`](mcp-servers.md) for why the official Plane MCP
+> did not work against self-hosted Community Edition.
 
 Manual registration, headless boxes, and the `client_secret is
 missing` error are all covered in
@@ -351,7 +350,8 @@ script refuses to run there.
 ## Verification checklist
 
 - [ ] `jq --version`, `uv --version`, `claude --version` all work
-- [ ] `claude mcp list` shows gmail, gcal, plane as `✔ Connected`
+- [ ] `claude mcp list` shows gmail and gcal as `✔ Connected`
+- [ ] `./scripts/plane.sh projects` returns your project list
 - [ ] `.env` has all five values
 - [ ] `goals.yaml` exists, copied from the example, with no `TODO` left
 - [ ] `goals.yaml` lists at least one project under `plane.projects`
@@ -367,12 +367,9 @@ clone works: the read-only MCP tools plus the `jq` calls
 mutation is denied by name. `.claude/settings.local.json` stays
 gitignored for per-machine overrides.
 
-Plane is different. Its v0.3.x tools are action-dispatch — one tool per
-resource, so `workitem` serves `list` *and* `delete` — and a deny rule
-on the tool name would block reads too. Read-only is enforced instead
-by a `PreToolUse` hook, `scripts/plane-readonly-guard.sh`, which
-default-denies any `action` outside a read allowlist and also blocks
-`pql`.
+Plane needs no rules of that kind: it has no MCP server. It is read
+through `scripts/plane.sh`, which issues GETs only, so the read-only
+guarantee is a property of the script rather than a permission rule.
 
 Adding a rule everyone needs? Put it in `settings.json`. File rules
 must be written `Edit(path)` — a `Write(path)` rule is silently never

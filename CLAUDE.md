@@ -66,13 +66,20 @@ summaries.
 MCP servers are installed by the user at **user scope** (`claude mcp add
 --scope user …`) so they're available in every `claude` session — not
 just this repo. See `docs/mcp-servers.md` for the exact install
-commands. The commands assume these three servers are connected:
+commands. The commands assume these two servers are connected:
 
 | Server   | Purpose                                | Sample tools                                    |
 |----------|----------------------------------------|-------------------------------------------------|
 | gmail    | Read the last 24h (thread-based)       | `search_threads`, `get_thread`                  |
 | gcal     | Today's events + 7-day look-ahead      | `list_events`, `get_event`                      |
-| plane    | Work items, states, members per project | `workitem`, `state`, `member` (action-dispatch; `action: "list"`) |
+
+**Plane has no MCP server.** It is read through `scripts/plane.sh`, a
+GET-only wrapper over Plane's v1 REST API, invoked by the
+`plane-fetcher` subagent. Google's MCPs earn their keep by carrying
+OAuth; Plane authenticates with a static API key, so a script does the
+same job with less machinery — and makes read-only structural (the
+script contains no POST/PATCH/DELETE) rather than a rule about which
+tool arguments are allowed. See `.claude/agents/plane-fetcher.md`.
 
 Gmail is Google's official MCP at `https://gmailmcp.googleapis.com/mcp/v1`
 — thread-based, no send capability. Delivery is not an MCP tool call:

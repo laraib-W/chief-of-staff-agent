@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Register the gmail, gcal, and plane MCP servers non-interactively from
+# Register the gmail and gcal MCP servers non-interactively from
 # the credentials in .env.
 #
-# Idempotent: any existing server under `gmail` / `gcal` / `plane` is
+# Idempotent: any existing server under `gmail` / `gcal` is
 # removed first, so re-running is safe after rotating a credential.
 #
 # Prereqs — see docs/mcp-servers.md for the details:
@@ -14,7 +14,7 @@
 #     - Web-application OAuth client with http://localhost:8765/callback
 #       registered as an authorized redirect URI
 #   Plane:
-#     - `uvx` on PATH (from uv); it fetches plane-mcp-server on demand
+#     - Plane needs no MCP server; see scripts/plane.sh
 
 set -euo pipefail
 
@@ -24,23 +24,23 @@ CALLBACK_PORT=8765
 
 usage() {
   cat <<EOF
-usage: $(basename "$0") [--login] [gmail] [gcal] [plane]
+usage: $(basename "$0") [--login] [gmail] [gcal]
 
-Registers the named MCP servers. With no server named, registers all
-three. Only credentials for the selected servers are required in .env.
+Registers the named MCP servers. With no server named, registers both.
+Only credentials for the selected servers are required in .env.
 
   --login   After registering, run \`claude mcp login\` for each selected
-            Google server (gmail / gcal). Opens a browser tab per server
-            and blocks until you consent, so it requires a terminal.
-            Plane is skipped — the stdio server authenticates with the
-            API key from .env and needs no consent.
+            server. Opens a browser tab per server and blocks until you
+            consent, so it requires a terminal.
+
+Plane has no MCP server. It is read through scripts/plane.sh (GET-only
+against the v1 REST API) — see .claude/agents/plane-fetcher.md for why.
 
 Examples:
-  $(basename "$0")                  # gmail + gcal + plane, register only
-  $(basename "$0") --login          # register all three, then consent
-  $(basename "$0") gmail gcal       # only re-run the Google OAuth pair
+  $(basename "$0")                  # gmail + gcal, register only
+  $(basename "$0") --login          # register both, then consent
+  $(basename "$0") gmail            # only re-run gmail
   $(basename "$0") --login gcal     # register gcal and consent to it
-  $(basename "$0") plane            # only rotate the Plane API key entry
 EOF
 }
 
@@ -50,16 +50,16 @@ DO_LOGIN=0
 SERVERS=()
 for arg in "$@"; do
   case "$arg" in
-    gmail|gcal|plane) SERVERS+=("$arg") ;;
+    gmail|gcal) SERVERS+=("$arg") ;;
     --login) DO_LOGIN=1 ;;
     -h|--help) usage; exit 0 ;;
-    *) echo "error: unknown argument '$arg' — expected --login or one of: gmail, gcal, plane" >&2
+    *) echo "error: unknown argument '$arg' — expected --login or one of: gmail, gcal" >&2
        usage >&2
        exit 1 ;;
   esac
 done
 if [ ${#SERVERS[@]} -eq 0 ]; then
-  SERVERS=(gmail gcal plane)
+  SERVERS=(gmail gcal)
 fi
 
 selected() {
@@ -92,17 +92,6 @@ if selected gmail || selected gcal; then
   : "${GOOGLE_OAUTH_CLIENT_SECRET:?missing GOOGLE_OAUTH_CLIENT_SECRET in .env}"
 fi
 
-if selected plane; then
-  : "${PLANE_API_KEY:?missing PLANE_API_TOKEN (or PLANE_API_KEY) in .env}"
-  : "${PLANE_WORKSPACE_SLUG:?missing PLANE_WORKSPACE_SLUG in .env}"
-  : "${PLANE_API_HOST_URL:?missing PLANE_API_HOST_URL in .env}"
-
-  if ! command -v uvx >/dev/null 2>&1; then
-    echo "warning: uvx not on PATH — first plane tool call will fail." >&2
-    echo "         install uv: https://docs.astral.sh/uv/getting-started/" >&2
-  fi
-fi
-
 register_google() {
   local name="$1" url="$2"
   # `logout` clears the cached OAuth record for this server. Without it a
@@ -128,19 +117,6 @@ register_google() {
     "$name" "$url"
 }
 
-register_plane() {
-  # v0.3.x is the maintained server: Python on PyPI, fetched on demand by
-  # uvx. The old npm @makeplane/plane-mcp-server (0.1.5, TypeScript) is
-  # unmaintained and lacks `fields`, pagination, and per-project members.
-  # Note the env var rename: PLANE_API_HOST_URL -> PLANE_BASE_URL.
-  claude mcp remove --scope user plane >/dev/null 2>&1 || true
-  claude mcp add --scope user plane \
-    --env PLANE_API_KEY="$PLANE_API_KEY" \
-    --env PLANE_WORKSPACE_SLUG="$PLANE_WORKSPACE_SLUG" \
-    --env PLANE_BASE_URL="$PLANE_API_HOST_URL" \
-    -- uvx plane-mcp-server stdio
-}
-
 if selected gmail; then
   echo "Registering gmail..."
   register_google gmail https://gmailmcp.googleapis.com/mcp/v1
@@ -151,16 +127,9 @@ if selected gcal; then
   register_google gcal https://calendarmcp.googleapis.com/mcp/v1
 fi
 
-if selected plane; then
-  echo "Registering plane..."
-  register_plane
-fi
-
 echo
 echo "Registered. Verify with: claude mcp list"
 
-# Only the Google servers use OAuth; plane (stdio) authenticates with the
-# API key already passed via --env, so it never needs a consent flow.
 GOOGLE_SERVERS=()
 if selected gmail; then GOOGLE_SERVERS+=(gmail); fi
 if selected gcal; then GOOGLE_SERVERS+=(gcal); fi

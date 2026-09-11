@@ -188,14 +188,10 @@ orchestrator-owned and deterministic.
   `Bash(jq *)`. This degrades quietly: the fetcher falls back to
   reading the whole ~205KB payload through context, so the run still
   succeeds, just expensively.
-- **A Plane call was blocked with "is not a read action"** — correct
-  behavior. `scripts/plane-readonly-guard.sh` is a `PreToolUse` hook
-  that default-denies any Plane `action` outside the read allowlist,
-  because v0.3.x serves reads and writes through one tool per resource
-  and a name-based deny rule cannot separate them.
-- **A Plane call was blocked for passing `pql`** — also correct. See
-  "Why filtering is done client-side" in
-  [`mcp-servers.md`](mcp-servers.md).
+- **Plane data looks stale** — `scripts/plane.sh fetch` caches the
+  project to `.cache/issues-<project_id>.json` and `stubs` reads that
+  cache. The subagent re-runs `fetch` every invocation, so staleness
+  means the fetch failed; check `./scripts/plane.sh fetch <id>` by hand.
 - **Agent tried to call a Gmail write tool (`create_draft`,
   `label_*`, `unlabel_*`, `create_label`) and was denied** — correct
   behavior. Google's official Gmail MCP does not offer a `send_email`

@@ -66,9 +66,8 @@ NO_DIGEST_SENTINEL = "<<<NO-DIGEST>>>"
 # Keep set (do NOT add to DENIED_TOOLS):
 #   gmail:  search_threads, get_thread
 #   gcal:   list_events
-#   plane:  workitem, state, member  (v0.3.x action-dispatch tools;
-#           read-only is enforced by the PreToolUse hook, not by
-#           denying tool names — one tool serves reads and writes)
+#   plane:  none — Plane is read through scripts/plane.sh (GET-only),
+#           not through an MCP server. See .claude/agents/plane-fetcher.md.
 DENIED_TOOLS = [
     # Gmail — every tool except search_threads / get_thread.
     # All writes stay denied (delivery goes through the Gmail API in
@@ -92,38 +91,6 @@ DENIED_TOOLS = [
     # Google Calendar — every tool except list_events.
     "mcp__gcal__authenticate",
     "mcp__gcal__complete_authentication",
-    # Plane — v0.3.x collapsed ~47 flat tools into 30 action-dispatch
-    # tools, so one tool now serves both reads and writes and a
-    # name-based deny would block reads too. Read-only is enforced on
-    # the `action` argument by the PreToolUse hook in
-    # .claude/settings.json (scripts/plane-readonly-guard.sh). The
-    # tools listed here are the ones the fetcher never calls, denied
-    # purely to keep their schemas out of context.
-    "mcp__plane__collection",
-    "mcp__plane__customer",
-    "mcp__plane__customer_property",
-    "mcp__plane__customer_request",
-    "mcp__plane__cycle",
-    "mcp__plane__initiative",
-    "mcp__plane__intake",
-    "mcp__plane__label",
-    "mcp__plane__milestone",
-    "mcp__plane__module",
-    "mcp__plane__page",
-    "mcp__plane__project_estimate",
-    "mcp__plane__release",
-    "mcp__plane__release_label",
-    "mcp__plane__release_tag",
-    "mcp__plane__template",
-    "mcp__plane__work_log",
-    "mcp__plane__workitem_activity",
-    "mcp__plane__workitem_attachment",
-    "mcp__plane__workitem_comment",
-    "mcp__plane__workitem_link",
-    "mcp__plane__workitem_property",
-    "mcp__plane__workitem_relation",
-    "mcp__plane__workitem_type",
-    "mcp__plane__workspace",
 ]
 
 

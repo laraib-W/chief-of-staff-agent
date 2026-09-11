@@ -8,15 +8,10 @@
       "mcp__gcal__get_event",
       "mcp__gcal__list_calendars",
       "mcp__gcal__suggest_time",
-      "mcp__plane__project",
-      "mcp__plane__workitem",
-      "mcp__plane__state",
-      "mcp__plane__member",
-      "mcp__plane__get_pql_reference",
       "Bash(jq *)",
       "Bash(date *)",
       "Bash(uv run *)",
-      "Bash(./scripts/plane-projects.sh)"
+      "Bash(./scripts/plane.sh *)"
     ],
     "deny": [
       "mcp__gmail__create_draft",
@@ -32,21 +27,6 @@
       "mcp__gcal__update_event",
       "mcp__gcal__delete_event",
       "mcp__gcal__respond_to_event"
-    ]
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "mcp__plane__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR:-.}/scripts/plane-readonly-guard.sh\"",
-            "timeout": 10,
-            "statusMessage": "Checking Plane call is read-only"
-          }
-        ]
-      }
     ]
   }
 }

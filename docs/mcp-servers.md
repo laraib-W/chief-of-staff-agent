@@ -20,7 +20,7 @@ Servers already on the list can be skipped in the install steps below.
 ### Fast path — one script for gmail + gcal + plane
 
 Once you've done the per-server prerequisites below (Cloud Console
-setup for Google, `uvx` on PATH for Plane, and
+setup for Google, and
 populated `.env` with the five variables from `.env.example`), run:
 
 ```bash
@@ -277,85 +277,40 @@ calendar tool — the official MCP does not expose `get-current-time`.
 It now shells out via `Bash(date +'%Y-%m-%d %A %Z')`, which is why
 `.claude/settings.local.json` allows `Bash(date *)`.
 
-### plane — issues, states, assignees per project
+### plane — not an MCP server
 
-Already installed? If `claude mcp list` shows a `plane` (or similarly
-named) server connected, skip this section — the slash commands use
-whatever's connected under that name.
+Plane is read through `scripts/plane.sh`, a GET-only wrapper over
+Plane's v1 REST API, called by the `plane-fetcher` subagent. Nothing to
+install or register; it reads `PLANE_API_TOKEN`, `PLANE_WORKSPACE_SLUG`
+and `PLANE_API_HOST_URL` from `.env`.
 
-#### Install
+Three findings, each verified against self-hosted Plane Community
+Edition v1.3.0, pushed us off the official MCP:
 
-```bash
-claude mcp add --scope user plane \
-  --env PLANE_API_KEY=<paste-here> \
-  --env PLANE_WORKSPACE_SLUG=<your-slug> \
-  --env PLANE_BASE_URL=<your-plane-host-url> \
-  -- uvx plane-mcp-server stdio
-```
+1. **Large results arrive inline.** `plane-mcp-server` v0.3.x hands a
+   subagent ~205KB of JSON with no file to filter, so the agent
+   paginates it into its own context — measured at ~55k tokens and
+   >600s for a single 492-issue project before the harness killed it.
+   The script writes the payload to `.cache/` and filters it with `jq`,
+   which is deterministic.
+2. **`project(action="list")` 404s on CE** — a Cloud-only endpoint
+   (makeplane/plane-mcp-server#171, #188). `/plane-setup` could not
+   list projects at all.
+3. **`pql` is silently ignored on CE.** A filtered read returns the
+   *entire* unfiltered set with HTTP 200, even for syntactically
+   invalid PQL (#192). Filtering has to happen locally regardless.
 
-Prereq: `uvx` on your `PATH` (ships with `uv`). It fetches
-`plane-mcp-server` from PyPI on demand — no install step.
-
-The npm `@makeplane/plane-mcp-server` is a different, unmaintained
-implementation (0.1.5, TypeScript, ~47 flat tools). v0.3.x is Python,
-30 action-dispatch tools, and is the one these skills target.
-
-#### Filling the three env vars
-
-| Var | What | Example (Arbisoft) |
-|---|---|---|
-| `PLANE_API_KEY` | Personal API token — Plane → **Workspace Settings → API tokens** → create → copy | `plane_api_…` |
-| `PLANE_WORKSPACE_SLUG` | The short name in your Plane URL: `<host>/<slug>/` | `arbisoft` |
-| `PLANE_BASE_URL` | Base URL of your Plane instance (cloud or self-hosted). Named `PLANE_API_HOST_URL` in `.env`; `setup-mcps.sh` maps it. | `https://projects.arbisoft.com` |
-
-#### What it produces
-
-The command above writes this entry into `~/.claude.json` under
-`mcpServers`:
-
-```json
-"plane": {
-  "type": "stdio",
-  "command": "uvx",
-  "args": ["plane-mcp-server", "stdio"],
-  "env": {
-    "PLANE_API_KEY": "…",
-    "PLANE_WORKSPACE_SLUG": "arbisoft",
-    "PLANE_BASE_URL": "https://projects.arbisoft.com"
-  }
-}
-```
-
-Verify with `claude mcp list` — the entry should show as connected.
-
-**Note on the key:** Claude Code stores env values in `~/.claude.json`
-in cleartext. Rotate the API token at Plane if you ever share that
-file. There is no `.env` involvement — the key is pasted **once** at
-install time.
-
-#### If you're on cloud Plane (`app.plane.so`)
-
-Plane also hosts a remote MCP with OAuth (no API key needed). Skip
-the install above and instead:
+Plane also authenticates with a static API key rather than OAuth, so
+the MCP was carrying no auth burden the script does not. The script
+contains no POST, PATCH or DELETE, which makes the read-only guarantee
+in `CLAUDE.md` §1.1 a property you can check by reading it.
 
 ```bash
-claude mcp add --scope user --transport http plane https://mcp.plane.so/http/mcp
+./scripts/plane.sh projects                  # [{id, identifier, name}, ...]
+./scripts/plane.sh members  <project_id>     # {uuid: display_name, ...}
+./scripts/plane.sh fetch    <project_id>     # cache + state census
+./scripts/plane.sh stubs    <project_id> "<active names csv>" <days>
 ```
-
-Authenticate once with `claude mcp login plane` before the first run
-(same reasoning as gmail/gcal — the SDK entrypoint can't consent).
-Only available for cloud Plane accounts — self-hosted instances (like Arbisoft's
-`projects.arbisoft.com`) must use the stdio path above.
-
-**Tools the commands rely on:**
-- `mcp__plane__workitem`  (`action: "list"`)
-- `mcp__plane__state`     (`action: "list"`, fallback only)
-- `mcp__plane__member`    (`action: "list_project"`)
-
-Tool namespace depends on the name you gave the server in
-`claude mcp add`. If you used something other than `plane`, the tool
-prefix changes accordingly — Claude figures this out from
-`claude mcp list`, no config change needed on our side.
 
 ## Package / server caveats
 

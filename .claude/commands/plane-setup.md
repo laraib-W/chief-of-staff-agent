@@ -15,7 +15,7 @@ Replaces hand-editing UUIDs into `goals.yaml`.
 
 ### Step 1: List projects
 
-Run `./scripts/plane-projects.sh`. It returns
+Run `./scripts/plane.sh projects`. It returns
 `[{id, identifier, name}, ...]` sorted by name.
 
 > Not an MCP call: plane-mcp-server v0.3.x's `project(action="list")`

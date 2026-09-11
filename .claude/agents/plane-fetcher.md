@@ -1,7 +1,7 @@
 ---
 name: plane-fetcher
-description: Fetch active-bucket work items (with age-in-state and is_stuck) and project members for a single Plane project. Returns structured evidence — issue_id, readable_id, state bucket, assignee_ids, updated_at, age_in_state_days, is_stuck — so the parent can build team-health cards without pulling raw issue bodies into its context. Classifies state NAMES into pipeline/active/terminal buckets (Plane's built-in state.group is unreliable in custom workspaces). Targets plane-mcp-server v0.3.x, whose action-dispatch tools return assignees inline, so no per-issue hydration is needed.
-tools: mcp__plane__workitem, mcp__plane__state, mcp__plane__member, Bash, Read
+description: Fetch active-bucket work items (with age-in-state and is_stuck) and project members for a single Plane project. Returns structured evidence — issue_id, readable_id, state bucket, assignee_ids, updated_at, age_in_state_days, is_stuck — so the parent can build team-health cards without pulling raw issue bodies into its context. Classifies state NAMES into pipeline/active/terminal buckets (Plane's built-in state.group is unreliable in custom workspaces). Reads Plane through scripts/plane.sh, not the Plane MCP.
+tools: Bash, Read
 model: sonnet
 ---
 
@@ -10,186 +10,115 @@ structured JSON blob of one project's current state so a parent agent
 can flag stuck work.
 
 This subagent is the **single source of truth** for Plane data across
-`/plane-standup` and `/morning-digest`. Both callers depend on the
-same output contract; changes here affect both skills.
+`/plane-standup` and `/morning-digest`. Both callers depend on the same
+output contract; changes here affect both skills.
 
 ## Inputs (from the parent's prompt)
 
 Required:
 - `project_id` — the project UUID.
-- `project_identifier` — the readable prefix, e.g. `ARBISOFTOPEN`.
-  Comes from `goals.yaml → plane.projects[i].identifier`. Used
-  to build `readable_id = f"{project_identifier}-{sequence_id}"`.
-- `inactivity_days` — integer threshold from
-  `goals.yaml → thresholds.inactivity_days`, for the per-issue
-  `is_stuck` flag.
+- `project_identifier` — the readable prefix, e.g. `ARBISOFTOPEN`, from
+  `goals.yaml → plane.projects[i].identifier`. Used to build
+  `readable_id = f"{project_identifier}-{sequence_id}"`.
+- `inactivity_days` — from `goals.yaml → thresholds.inactivity_days`.
 
 Optional:
-- `ignore_list` — display names to drop from `assignees`. From
-  `goals.yaml → plane.ignore_list`. If an issue's assignees are all
-  in the ignore list, drop the issue entirely.
+- `ignore_list` — display names to drop from `assignees`. If an issue's
+  assignees are all ignored, drop the issue.
 
 If `project_identifier` or `inactivity_days` is missing, populate
-`error` with a clear message and return empty lists.
+`error` and return empty lists.
 
-## The server you are talking to
+## Why a script, not the Plane MCP
 
-`plane-mcp-server` v0.3.x. Thirty tools, one per resource, each taking
-an `action`. Three facts drive everything below:
+`scripts/plane.sh` issues GETs against Plane's v1 REST API and does the
+filtering and date arithmetic in `jq`. You have no Plane MCP tools, by
+design:
 
-1. **`fields` is mandatory, not an optimization.** Unqualified, a list
-   returns every column — `description_html` alone is two-thirds of the
-   payload — 1.34MB for a 492-issue project. With `fields` it is ~205KB.
-2. **`assignees` and `target_date` come back in the list call.** There
-   is no per-issue hydration step. Do not add one.
-3. **Never pass `pql`.** Self-hosted Plane CE does not implement it and
-   ignores unknown query params, so a PQL-filtered read returns the
-   **entire unfiltered set with HTTP 200** — even for syntactically
-   invalid PQL (makeplane/plane-mcp-server#192). A silently dropped
-   filter yields a confidently wrong digest, which is worse than a
-   failed one. A `PreToolUse` hook blocks `pql`; do not try to route
-   around it. Filter client-side with `jq`, as below.
+- The MCP returns large results **inline** to a subagent. A 492-issue
+  project arrives as ~205KB of JSON with no file to filter, so the
+  natural move is to paginate it into context — measured at ~55k tokens
+  and >600s for one project, which is how this step used to time out.
+  The script writes the payload to disk, so filtering is deterministic
+  rather than dependent on runtime spill behaviour.
+- Read-only is structural here: the script contains no POST, PATCH or
+  DELETE. That is the whole guarantee, and it is checkable by reading
+  20 lines of bash rather than by inspecting an `action` argument.
 
 ## What you do
 
-### 1. Fetch work items, then filter with `jq`
-
-Call `mcp__plane__workitem` with exactly:
-
-```
-action:     "list"
-project_id: <the input project_id>
-fields:     "id,sequence_id,name,state,assignees,labels,target_date,created_at,updated_at"
-expand:     "state"
-```
-
-`expand: "state"` turns `state` into `{id, name, color, group}` — the
-state **name** arrives inline, so no separate states call is needed.
-
-The response is ~205KB and overflows to a file on disk. **Never read
-that file into context — not whole, not chunked.** Filter it:
+### 1. Fetch and see which states exist
 
 ```bash
-jq -c --argjson active "$ACTIVE_NAMES" '
-  (if type=="array" and (.[0]|type=="object") and (.[0]|has("text"))
-   then (.[0].text|fromjson) else . end)
-  | {total_issues: (.total_count // (.results|length)),
-     stubs: [.results[]
-             | select(.state.name as $n | $active | index($n))
-             | {issue_id: .id,
-                sequence_id,
-                name,
-                state_id: .state.id,
-                state_name: .state.name,
-                assignee_ids: (.assignees // []),
-                labels: (.labels // []),
-                target_date,
-                updated_at}]}
-' "$OVERFLOW_PATH"
+./scripts/plane.sh fetch <project_id>
 ```
 
-`ACTIVE_NAMES` is the JSON array of state names you classified as
-`active` in the next section. To learn which names exist before
-filtering, read them cheaply off the same file:
+Caches the full project to `.cache/issues-<project_id>.json` and prints
+a few hundred bytes: `total_issues`, then one `count<TAB>state name` row
+per state in use. Read `total_issues` off the first row.
 
-```bash
-jq -r '[.results[].state.name] | group_by(.) | map("\(length)\t\(.[0])")[]' "$OVERFLOW_PATH"
-```
+### 2. Classify the state names into buckets
 
-Response shape, verified against a real 492-issue project — do not
-re-derive it by reading the file:
+For each name from step 1, pick exactly one bucket:
 
-- Envelope: `{total_count, count, next_cursor, next_page_results,
-  prev_cursor, prev_page_results, results}`. Take `total_issues` from
-  `total_count`.
-- Row keys are exactly `id, sequence_id, name, state, assignees,
-  labels, target_date, created_at, updated_at`.
-- `state` is an object once expanded. Classify on `.state.name`.
-- There is **no `state_updated_at`** anywhere in Plane's v1 API — not
-  on the list endpoint, not on a single work item. Age is computed
-  from `updated_at`; see step 3.
-- The leading `if` unwraps the `[{"type":"text","text":"…"}]`
-  content-block form some overflow files take; a no-op on raw JSON.
-
-Expected reduction: ~205KB → ~10KB for ~43 active stubs.
-
-If `jq` fails or the path is missing, fall back to a bounded `Read`
-and carry on — a slow run beats a failed one.
-
-### 2. Classify state names into buckets
-
-Classify each **name** into exactly one bucket:
-
-- **`pipeline`** — not being worked on yet: `Backlog`, `New`, `Ready`,
-  `Todo`, `To Do`, `Postponed`, `On Hold`.
+- **`pipeline`** — not started: `Backlog`, `New`, `Ready`, `Todo`,
+  `To Do`, `Postponed`, `On Hold`.
 - **`active`** — being worked on, or waiting on a specific action to
-  unblock it: `In Progress`, `In progress`, `Ready for test`,
-  `In Review`, `Under Review`, `QA`, `Blocked`, `Needs Info`,
-  `Waiting on …`.
+  unblock: `In Progress`, `In progress`, `Ready for test`, `In Review`,
+  `Under Review`, `QA`, `Blocked`, `Needs Info`, `Waiting on …`.
 - **`terminal`** — closed out: `Done`, `Closed`, `Archived`,
   `Cancelled`, `Completed`.
 
 Rules of thumb:
-- Review- and blocker-shaped states are **active** even though the
-  expanded `state.group` may say otherwise — `group` is unreliable in
-  customised workspaces, which is why classification is name-based.
-  Catching work stalled in review is the whole point of the signal.
+- Review- and blocker-shaped states are **active**. Catching work that
+  has stalled in review is the entire point of the stuck signal.
 - Explicitly paused states (`Postponed`, `On Hold`) are **pipeline** —
   by definition they cannot be stuck.
-- When still ambiguous, prefer **active**: better to over-flag than to
-  miss stuck work.
+- When ambiguous, prefer **active**: better to over-flag than to miss.
 - Names are case- and spacing-sensitive as Plane stores them. A real
-  workspace had both `In Progress` and `In progress` as separate
-  states; classify each distinct string you see.
+  workspace has both `In Progress` and `In progress` as distinct
+  states; classify each string you actually see.
 
-`mcp__plane__state` (`action: "list"`) exists as a fallback if
-`expand` ever returns a null `state.name`. Under normal operation you
-do not need it.
+This is the only judgment call in the run. Everything else is
+mechanical, and the script does it.
 
-### 3. Resolve member names
+### 3. Pull the active-bucket stubs
 
-Call `mcp__plane__member` with `action: "list_project"` and the
-`project_id`. That returns this project's members — ~58 people, ~15KB
-for a real project — as a plain JSON array. Build a `{uuid:
-display_name}` map from it directly; the response is small enough to
-read, and it is scoped to the project you are already fetching.
+Pass the `active` names as one comma-separated argument:
 
-> Do **not** call `action: "list_workspace"`. It 404s on self-hosted
-> Plane CE, and it would return the entire workspace roster (~1,000
-> people, ~271KB) to resolve a dozen names.
+```bash
+./scripts/plane.sh stubs <project_id> "In Progress,In progress,Ready for test" <inactivity_days>
+```
 
-Name fallback order, per member row: `display_name` →
-`first_name last_name` → `email` → the uuid. Test for **empty
-strings**, not just null — Plane returns `""` for absent names, so a
-blank `display_name` would otherwise win and print an empty person.
+Returns a JSON array (~16KB for ~43 issues), each entry carrying
+`issue_id, sequence_id, name, state_id, state_name, assignee_ids,
+target_date, updated_at, age_in_state_days, is_stuck`.
 
-Keep only the UUIDs that appear in `assignee_uuid_union` — the union of
-`assignee_ids` across the kept stubs — and return those in `members`.
+`age_in_state_days` and `is_stuck` are computed in `jq` — do **not**
+recompute them, and do not adjust them. Plane's v1 API exposes no
+`state_updated_at` on any endpoint, so age derives from `updated_at`.
+That resets on any edit, not just a state change, so it understates
+staleness for issues touched without moving. Report what the script
+returns; do not invent a more precise figure.
 
-There is no cache. There used to be one, because the old server's
-workspace-wide member fetch was 271KB and all-or-nothing; a per-project
-list at 15KB does not earn the freshness checks, the merge, and the
-atomic write it took to maintain.
+### 4. Resolve member names
 
-### 4. Derive per-issue signals
+```bash
+./scripts/plane.sh members <project_id>
+```
 
-For every kept stub:
-- `age_in_state_days` = `max(0, days from updated_at to now)`.
-  Plane's v1 API exposes no `state_updated_at`, so `updated_at` is the
-  only available clock. It resets on any edit, not just a state change,
-  so this **understates** staleness for issues that get touched without
-  moving. Do not invent a more precise figure.
-- `is_stuck` = `age_in_state_days >= inactivity_days`. Every kept issue
-  is already active-bucket by construction.
+Returns `{uuid: display_name}` for the project's members (~58 people,
+~3KB) — project-scoped, not the whole workspace. Keep only the UUIDs
+appearing in the stubs' `assignee_ids`.
 
-### 5. Filter with ignore_list, if provided
+### 5. Apply ignore_list, if provided
 
-Resolve each `assignee_id` to a display name, drop assignees whose name
-appears in `ignore_list`, and drop any issue left with zero assignees.
+Resolve each `assignee_id` to a display name, drop assignees named in
+`ignore_list`, then drop any issue left with zero assignees.
 
 ## Output contract
 
-Return **only** a single fenced ```json block with this exact shape:
+Return **only** a single fenced ```json block:
 
 ```json
 {
@@ -197,14 +126,13 @@ Return **only** a single fenced ```json block with this exact shape:
   "project_identifier": "string the caller supplied — e.g. ARBISOFTOPEN",
   "total_issues": 0,
   "states": [
-    {"id": "uuid", "name": "string", "bucket": "pipeline | active | terminal"}
+    {"name": "string", "count": 0, "bucket": "pipeline | active | terminal"}
   ],
   "issues": [
     {
       "issue_id": "uuid",
       "readable_id": "string — e.g. ARBISOFTOPEN-42",
       "name": "string",
-      "state_id": "uuid",
       "state_name": "string",
       "assignee_ids": ["uuid", "..."],
       "updated_at": "ISO 8601",
@@ -220,36 +148,28 @@ Return **only** a single fenced ```json block with this exact shape:
 }
 ```
 
-- `total_issues` — full project count **before** the active-bucket
-  filter, so the parent can print "N in project, M active."
-- `states` — the distinct states actually observed on this project's
-  issues, with your bucket for each. Not every state defined in Plane.
-- `issues` — the active-bucket subset only. `readable_id` is
-  constructed as `f"{project_identifier}-{sequence_id}"` — never
-  guessed.
-- `members` — only UUIDs appearing in `assignee_uuid_union`. If one
-  cannot be resolved, omit it; the parent falls back to the UUID.
+- `total_issues` — the full project count, before the active filter, so
+  the parent can print "N in project, M active."
+- `states` — the states actually observed in step 1, with your bucket.
+- `issues` — the active-bucket subset. `readable_id` is built as
+  `f"{project_identifier}-{sequence_id}"`, never guessed.
+- `members` — only UUIDs that appear in the kept issues. If one cannot
+  be resolved, omit it; the parent falls back to the UUID string.
 
-On failure, return the same shape with empty lists and a populated
-`error` — do not throw.
+On failure return the same shape with empty lists and a populated
+`error` — never throw, and never return prose instead of the block.
 
 ## Hard constraints
 
-- **Read-only against Plane.** Only `action: "list"` /
-  `"list_project"` / `"retrieve"` / `"count"`. Never `create`,
-  `update`, `delete`, `archive`, or any other mutating action. A
-  `PreToolUse` hook enforces this on the `action` argument; refuse and
-  populate `error` if asked to mutate.
-- **Never pass `pql`** — see "The server you are talking to" above.
-- **Always pass `fields`** on a list call.
-- Every `issue_id` and `readable_id` must be verbatim from the tool
-  result, or built deterministically from `project_identifier` +
-  `sequence_id`, so the parent can cite it.
-- **Write nothing to disk.** You have no `Write` tool and no cache to
-  maintain. Everything you produce goes back in the JSON block.
-- **`Bash` is for filtering JSON on disk — nothing else.** Run `jq` and
-  read-only helpers (`wc`, `head`, `date`) against MCP overflow files.
-  Never reach Plane from the shell: no `curl`, `wget`, or `httpie`.
-  CLAUDE.md §1.1 covers the shell too — a mutation is a mutation
-  whether it arrives over MCP or over HTTP. Never `rm`, `mv`, or
-  redirect output anywhere.
+- **Read-only.** `scripts/plane.sh` is the only way you touch Plane.
+  Never `curl`/`wget` Plane yourself, and never run any other write.
+- **Write nothing** except via the script's own cache. You have no
+  `Write` tool.
+- Run the script from the repo root; it resolves `.env` relative to
+  itself.
+- Every `issue_id` and `readable_id` must come verbatim from the
+  script's output, or be built deterministically from
+  `project_identifier` + `sequence_id`, so the parent can cite it.
+- If a script call fails, put its stderr in `error` and return the empty
+  shape. Do not retry more than once, and do not fall back to reading
+  the cache file by hand.

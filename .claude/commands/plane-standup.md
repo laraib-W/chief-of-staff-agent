@@ -15,7 +15,7 @@ Faster than `/morning-digest` when you only care about project state
 
 All Plane fetching is delegated to the `plane-fetcher` subagent so
 `/plane-standup` and `/morning-digest` share one implementation of
-state classification, active-bucket filtering, hydration workaround,
+state classification, active-bucket filtering,
 and the member cache. This skill's job is to fan out the subagent,
 aggregate the responses, and print the report.
 
@@ -71,9 +71,10 @@ Prompt shape:
 > project_identifier=<prefix>, inactivity_days=<N>[, ignore_list=[...]]
 > and return the structured JSON per your contract.
 
-The subagent handles state classification, the v0.1.5 hydration
-workaround, the member cache, and `age_in_state_days` / `is_stuck`
-derivation internally. Do not repeat that work in main context.
+The subagent handles state classification, active-bucket filtering,
+member resolution, and `age_in_state_days` / `is_stuck` derivation
+internally, via `scripts/plane.sh`. Do not repeat that work in main
+context.
 
 Each response has shape (see `.claude/agents/plane-fetcher.md` for
 the authoritative contract):
@@ -81,8 +82,8 @@ the authoritative contract):
 ```
 {
   project_id, project_identifier, total_issues,
-  states: [{id, name, bucket}],
-  issues: [{issue_id, readable_id, name, state_id, assignee_ids,
+  states: [{name, count, bucket}],
+  issues: [{issue_id, readable_id, name, state_name, assignee_ids,
             updated_at, state_updated_at, age_in_state_days, is_stuck,
             target_date}],
   members: [{id, display_name}],
@@ -97,13 +98,13 @@ the banner in Step 6.
 
 ### Step 4: Build per-person cards (per project)
 
-For each project's response, index `states` by `id` and `members` by
+For each project's response, index `states` by `name` and `members` by
 `id` to make lookups cheap.
 
 Fan each issue across every `assignee_id` — a co-assigned issue
 counts for every carrier. If an issue has an empty `assignee_ids`
-(either genuinely unassigned or hydration failed for that issue),
-bucket it under a synthetic `(unassigned)` person.
+(genuinely unassigned), bucket it under a synthetic `(unassigned)`
+person.
 
 For each `person_id` in the resulting fan-out:
 
@@ -113,7 +114,7 @@ For each `person_id` in the resulting fan-out:
 - `active_count` = number of the person's issues (all `active` by
   construction).
 - `state_breakdown` = `{state_name: count}` from
-  `states[issue.state_id].name`, e.g.
+  `issue.state_name`, e.g.
   `{"In Progress": 3, "Ready for test": 1}`.
 - `stuck_items` = the person's issues where `is_stuck == true`,
   each carrying `readable_id` and `age_in_state_days`.
@@ -178,10 +179,9 @@ End the whole report with a totals line across projects:
   considers one, stop and explain why. (The subagent is also
   read-only; see `.claude/agents/plane-fetcher.md`.)
 - **Delegate context-heavy work.** Never call
-  `mcp__plane__workitem`, `mcp__plane__state`, or
-  `mcp__plane__member` directly from
-  this skill. The subagent already handles them; duplicating those
-  calls in main context defeats the purpose of the fan-out.
+  `scripts/plane.sh` directly from this skill. The subagent already
+  handles it; duplicating those calls in main context defeats the
+  purpose of the fan-out.
 - If Plane MCP fails mid-run for one project, ship the standup with
   a banner naming what failed. A missing project is never a reason
   to skip the run.
