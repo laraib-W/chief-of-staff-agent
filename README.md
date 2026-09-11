@@ -45,6 +45,11 @@ exits.
 
 ## Quickstart
 
+> **On the `experiment/claude-agent-sdk` branch?** Follow
+> [docs/getting-started.md](docs/getting-started.md) instead — one file,
+> every step, from a fresh clone to a scheduled digest. The quickstart
+> below describes the LangGraph pipeline in `app/` on `main`.
+
 > Precise commands land with the Phase 0 scaffold. The shape below is the
 > intended flow.
 

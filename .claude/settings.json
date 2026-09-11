@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "mcp__gmail__search_threads",
+      "mcp__gmail__get_thread",
+      "mcp__gcal__list_events",
+      "mcp__gcal__get_event",
+      "mcp__gcal__list_calendars",
+      "mcp__gcal__suggest_time",
+      "Bash(jq *)",
+      "Bash(date *)",
+      "Bash(uv run *)",
+      "Bash(./scripts/plane.sh *)"
+    ],
+    "deny": [
+      "mcp__gmail__create_draft",
+      "mcp__gmail__create_label",
+      "mcp__gmail__label_message",
+      "mcp__gmail__label_thread",
+      "mcp__gmail__unlabel_message",
+      "mcp__gmail__unlabel_thread",
+      "mcp__gmail__trash_message",
+      "mcp__gmail__trash_thread",
+      "mcp__gmail__update_message_labels",
+      "mcp__gcal__create_event",
+      "mcp__gcal__update_event",
+      "mcp__gcal__delete_event",
+      "mcp__gcal__respond_to_event"
+    ]
+  }
+}

@@ -7,6 +7,23 @@
 # Real user config (see config.example.yaml for the template)
 config.yaml
 
+# Live config: identity, trusted domains, objectives, Plane projects.
+# Copied from the committed goals.example.yaml and never committed itself.
+# An earlier scheme kept goals.yaml tracked with TODO placeholders and
+# relied on nobody committing the filled-in version; that failed (see the
+# history of goals.yaml). Ignoring the live file is what actually works.
+goals.yaml
+
+# Claude Code local state (session history, personal overrides) — but
+# slash commands under .claude/commands/, subagents under .claude/agents/,
+# and the shared permission rules in .claude/settings.json ship with the
+# repo so `/morning-digest`, `/plane-standup`, etc. work out of the box
+# after clone. settings.local.json stays ignored: it is per-machine.
+.claude/*
+!.claude/commands/
+!.claude/agents/
+!.claude/settings.json
+
 # Private fixtures that cannot be safely committed
 tests/fixtures/private/
 tests/evaluation/golden_private/
@@ -35,3 +52,6 @@ venv/
 # Build artifacts
 build/
 dist/
+
+# Local cache for slash commands (Plane members, etc.)
+.cache/

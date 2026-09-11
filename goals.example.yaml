@@ -1,0 +1,47 @@
+# Copy to `goals.yaml` and fill in. `goals.yaml` is gitignored.
+#
+#     cp goals.example.yaml goals.yaml
+#
+# Everything here is specific to one person — your name, your inbox, your
+# employer's domain, your objectives — which is why the real file is never
+# committed. Identity was committed once by accident (see git history for
+# goals.yaml); keeping the live file out of git is what prevents a repeat.
+#
+# Read by:
+#   - .claude/commands/morning-digest.md  (all sections)
+#   - .claude/commands/plane-standup.md   (thresholds, timezone)
+#   - app_sdk/run.py                      (identity, for delivery)
+
+identity:
+  user_name: TODO                 # how the digest greets you
+  delivery_address: TODO          # where the digest is emailed, e.g. you@arbisoft.com
+  timezone: Asia/Karachi          # IANA name — bounds "today"
+
+gmail:
+  # Mail from these domains gets a +1 priority boost when ranking.
+  # Case-insensitive match on the sender's domain.
+  trusted_domains:
+    - arbisoft.com                # add others as needed
+
+thresholds:
+  # An active Plane issue is "stuck" once it has sat in its current state
+  # this many days. Time-in-state is the durable staleness signal here;
+  # target_date is set on ~3% of issues in practice.
+  inactivity_days: 4
+  # How far ahead /morning-digest looks when listing calendar events.
+  calendar_lookahead_days: 7
+
+# Quarterly objectives Claude references when ranking priorities.
+# Keep it short — this file is re-read every run.
+objectives:
+  - key: TODO                     # short slug, e.g. q4-latency
+    title: TODO                   # one sentence
+    why: TODO                     # why it matters right now
+
+# Written by `/plane-setup` — you do not fill this in by hand.
+# plane:
+#   projects:
+#     - id: <uuid>
+#       identifier: ENG
+#       name: Engineering
+#   ignore_list: []               # display names to exclude from team health
