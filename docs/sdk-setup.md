@@ -90,13 +90,13 @@ orchestrator-owned and deterministic.
 
 ## Prerequisites
 
-1. **`jq` on `PATH`** — a hard dependency, not a convenience.
-   `.claude/agents/plane-fetcher.md` shells out to `jq` to filter
-   Plane's oversized MCP payloads on disk instead of reading them
-   into context (a 492-issue project returns ~205KB even with
-   `fields` narrowing, and the member list ~15KB). Install with `brew install jq` /
-   `apt install jq`. Without it, member resolution fails and the
-   digest prints raw UUIDs instead of names.
+1. **`jq` and `curl` on `PATH`** — hard dependencies, not
+   conveniences. `scripts/plane.sh` fetches Plane over `curl` and
+   filters the result with `jq` on disk, so `plane-fetcher` reads a
+   132-byte state census and ~16KB of filtered issues instead of the
+   full 279KB project. Install `jq` with `brew install jq` /
+   `apt install jq`; `curl` ships with macOS and most Linux. Without
+   them the Plane section of the digest fails entirely.
 2. **A logged-in Claude Code CLI** — run `claude` once and `/login`
    if you have not. The SDK entrypoint spawns the CLI, which uses that
    session; no `ANTHROPIC_API_KEY` is needed. Set one only if you

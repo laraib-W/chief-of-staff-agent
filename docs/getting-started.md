@@ -35,11 +35,12 @@ Everything is **read-only** except the one digest email. See
 | `uv` | `uv --version` | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | Claude Code CLI | `claude --version` | `npm i -g @anthropic-ai/claude-code` |
 | `jq` | `jq --version` | `brew install jq` / `apt install jq` |
-| `uvx` | `uvx --version` | ships with `uv` — nothing extra to install |
+| `curl` | `curl --version` | preinstalled on macOS and most Linux |
 
-`jq` is **not optional**. `.claude/agents/plane-fetcher.md` shells out
-to it to filter Plane's oversized MCP payloads on disk. Without it the
-digest prints raw UUIDs instead of teammates' names.
+`jq` and `curl` are **not optional** — `scripts/plane.sh` is built on
+them. It fetches your Plane issues with `curl` and filters them with
+`jq` on disk, so the digest never reads a 279KB payload into context.
+Without either, the whole Plane section of the digest fails.
 
 ## Step 2 — Clone and install dependencies
 
@@ -381,6 +382,6 @@ matched.
 |---|---|
 | MCP won't connect or authenticate | [`mcp-servers.md`](mcp-servers.md) §Troubleshooting |
 | `invalid_grant` on send | Step 4e above — publish the consent screen, then `--reauth` |
-| Digest shows UUIDs, or Plane is slow | [`sdk-setup.md`](sdk-setup.md) §Troubleshooting |
+| Plane section empty, stale, or slow | [`sdk-setup.md`](sdk-setup.md) §Troubleshooting |
 | Ran but no email arrived | [`sdk-setup.md`](sdk-setup.md) §Troubleshooting |
 | What the agent may and may not do | `CLAUDE.md` Part 1 |
