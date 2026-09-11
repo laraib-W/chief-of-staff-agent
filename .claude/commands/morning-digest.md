@@ -53,10 +53,15 @@ From `goals.yaml` (gitignored; the user's only config file):
 - `plane.projects` — list of `{id, identifier, name}`. Each entry
   is one plane-fetcher invocation in Step 2.
 
-If `goals.yaml` is missing, or any value is still `TODO`, stop and
-tell the user to run `cp goals.example.yaml goals.yaml`, fill it in,
-and run `/plane-setup`. Never guess an identity or a project list —
-a wrong delivery address mails their digest to a stranger.
+If `goals.yaml` is missing, or `identity.delivery_address` /
+`identity.user_name` is still `TODO`, **stop** and tell the user to run
+`cp goals.example.yaml goals.yaml` and fill those in. Never guess an
+identity — a wrong delivery address mails their digest to a stranger.
+
+A `TODO` anywhere else is not a blocker. Unfilled `objectives` just
+means you have no quarterly goals to rank against: say so in one line
+and ship the digest. Missing `plane.projects` means Plane is skipped
+with a banner (§1.3), not that the run aborts.
 
 The Plane workspace itself is scoped by the plane MCP server's env
 vars (see `docs/mcp-servers.md`), so no `workspace_slug` is needed

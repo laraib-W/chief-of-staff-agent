@@ -227,46 +227,56 @@ short-circuits with "Already authenticated" when a token exists.
 
 ## Step 8 — Configure the agent
 
-**8a. Create your config:**
+**8a. Copy the template and edit it:**
 
 ```bash
 cp goals.example.yaml goals.yaml
 ```
 
-Then fill in every `TODO`:
+Open `goals.yaml`. Most of it already works — `timezone`,
+`trusted_domains`, and both thresholds ship with sensible values. **Three
+things need you:**
 
 ```yaml
 identity:
-  user_name: Your Name
-  delivery_address: you@example.com   # where the digest is emailed
-  timezone: Asia/Karachi              # IANA name; bounds "today"
-
-gmail:
-  trusted_domains:
-    - yourcompany.com                 # +1 priority when ranking
-
-thresholds:
-  inactivity_days: 4                  # days in one state before "stuck"
-  calendar_lookahead_days: 7
+  user_name: TODO          # -> your first name; the digest greets you by it
+  delivery_address: TODO   # -> your inbox, e.g. you@arbisoft.com
 
 objectives:
-  - key: q4-latency
-    title: <one-sentence quarterly objective>
-    why: <why this matters now>
+  - key: TODO              # -> short slug, e.g. q4-latency
+    title: TODO            # -> one sentence
+    why: TODO              # -> why it matters right now
 ```
 
+Leave `plane:` commented out — `/plane-setup` writes it in 8b.
+
+Check nothing was missed:
+
+```bash
+grep -n TODO goals.yaml    # no output = done
+```
+
+What you can change later, and what it affects:
+
+| Key | Effect |
+|---|---|
+| `identity.timezone` | Bounds "today" for the calendar section. IANA name. |
+| `gmail.trusted_domains` | Senders on these domains get +1 priority when ranking. |
+| `thresholds.inactivity_days` | Days in one state before an issue is flagged stuck. |
+| `thresholds.calendar_lookahead_days` | How far ahead the digest lists events. |
+| `objectives` | Referenced when ranking priorities. Re-read every run. |
+
 `goals.yaml` is gitignored; `goals.example.yaml` is the committed
-template. Every value in it is specific to you — your name, your inbox,
-your employer's domain, your objectives — so the live copy is never
-tracked.
+template. Every value is specific to you — your name, your inbox, your
+objectives — so the live copy is never tracked.
 
 > It used to work the other way: `goals.yaml` was committed with `TODO`
-> placeholders, and nobody was supposed to commit the filled-in version.
+> placeholders and nobody was supposed to commit the filled-in version.
 > That lasted two commits before a real name and delivery address were
 > published. Ignoring the live file is what actually prevents it.
 
-Skip this and the run stops with a named error rather than mailing your
-digest somewhere wrong.
+Skip this step and the run stops with a named error rather than mailing
+your digest somewhere wrong.
 
 **8b. Pick your Plane projects.** Start Claude Code in the repo and
 run the setup command:
