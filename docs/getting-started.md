@@ -35,7 +35,7 @@ Everything is **read-only** except the one digest email. See
 | `uv` | `uv --version` | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | Claude Code CLI | `claude --version` | `npm i -g @anthropic-ai/claude-code` |
 | `jq` | `jq --version` | `brew install jq` / `apt install jq` |
-| `pipx` | `pipx --version` | `brew install pipx` / `python3 -m pip install --user pipx` |
+| `uvx` | `uvx --version` | ships with `uv` — nothing extra to install |
 
 `jq` is **not optional**. `.claude/agents/plane-fetcher.md` shells out
 to it to filter Plane's oversized MCP payloads on disk. Without it the
@@ -164,17 +164,7 @@ ANTHROPIC_API_KEY=<https://console.anthropic.com>
 `.env` is gitignored. Never commit it, and never paste its values into
 a chat or an issue.
 
-## Step 6 — Install the Plane MCP binary
-
-Nothing to install — `uvx` fetches `plane-mcp-server` (v0.3.x, PyPI)
-on demand at first use. Confirm `uvx --version` works; it ships with
-`uv` from step 1.
-
-> Do **not** install the npm `@makeplane/plane-mcp-server` — that is an
-> unmaintained 0.1.5 TypeScript build with a different, flat tool
-> surface.
-
-## Step 7 — Register and authenticate the three MCP servers
+## Step 6 — Register and authenticate the three MCP servers
 
 ```bash
 ./scripts/setup-mcps.sh --login
@@ -183,6 +173,12 @@ on demand at first use. Confirm `uvx --version` works; it ships with
 The script reads `.env`, registers `gmail`, `gcal`, and `plane` at user
 scope, and opens a browser for the two Google consent flows. It is
 idempotent — safe to re-run.
+
+`plane` is registered as `uvx plane-mcp-server stdio` — `uvx` fetches
+v0.3.x from PyPI on first use, so there is nothing to install. Do
+**not** install the npm `@makeplane/plane-mcp-server`; that is an
+unmaintained 0.1.5 TypeScript build with a different, flat tool surface
+these skills do not target.
 
 Confirm all three:
 
@@ -199,7 +195,7 @@ Manual registration, headless boxes, and the `client_secret is
 missing` error are all covered in
 [`mcp-servers.md`](mcp-servers.md).
 
-## Step 8 — Authorize the send path
+## Step 7 — Authorize the send path
 
 Separate from the MCPs: the MCP servers only read. Delivery is done by
 `run.py` through the Gmail API, with its own token in your OS keyring.
@@ -220,7 +216,7 @@ uv run python -m app_sdk.auth --setup --account you@example.com
 To replace an existing token later, use `--reauth` — plain `--setup`
 short-circuits with "Already authenticated" when a token exists.
 
-## Step 9 — Configure the agent
+## Step 8 — Configure the agent
 
 **9a. Edit `goals.yaml`** and replace every `TODO`:
 
@@ -267,7 +263,7 @@ plane:
 
 Re-run it any time to change the selection. Don't hand-edit UUIDs.
 
-## Step 10 — Smoke test
+## Step 9 — Smoke test
 
 Interactive, in `claude`:
 
@@ -292,7 +288,7 @@ uv run python -m app_sdk.run
 
 Other flags: `--command /triage`, `--to someone@example.com`.
 
-## Step 11 — Schedule the daily run
+## Step 10 — Schedule the daily run
 
 macOS only — it installs a launchd job:
 
