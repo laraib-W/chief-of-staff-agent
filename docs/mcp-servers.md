@@ -20,7 +20,7 @@ Servers already on the list can be skipped in the install steps below.
 ### Fast path — one script for gmail + gcal + plane
 
 Once you've done the per-server prerequisites below (Cloud Console
-setup for Google, `pipx install plane-mcp-server` for Plane, and
+setup for Google, `uvx` on PATH for Plane, and
 populated `.env` with the five variables from `.env.example`), run:
 
 ```bash
@@ -32,7 +32,7 @@ logout` (clearing any cached OAuth record) and `claude mcp remove`
 first, then re-registers via `claude mcp add`. Google auth uses
 `MCP_CLIENT_SECRET` env-var handoff so no masked prompt is needed;
 Plane's three env vars (`PLANE_API_TOKEN` → `PLANE_API_KEY`,
-`PLANE_WORKSPACE_SLUG`, `PLANE_API_HOST_URL`) are piped directly into
+`PLANE_WORKSPACE_SLUG`, `PLANE_API_HOST_URL` → `PLANE_BASE_URL`) are piped into
 the `--env` flags on `claude mcp add`. Read the per-server sections
 below for what the prerequisites actually mean before running it the
 first time.
@@ -289,20 +289,16 @@ whatever's connected under that name.
 claude mcp add --scope user plane \
   --env PLANE_API_KEY=<paste-here> \
   --env PLANE_WORKSPACE_SLUG=<your-slug> \
-  --env PLANE_API_HOST_URL=<your-plane-host-url> \
-  -- plane-mcp-server
+  --env PLANE_BASE_URL=<your-plane-host-url> \
+  -- uvx plane-mcp-server stdio
 ```
 
-Prereq: `plane-mcp-server` on your `PATH`. Install once with:
+Prereq: `uvx` on your `PATH` (ships with `uv`). It fetches
+`plane-mcp-server` from PyPI on demand — no install step.
 
-```bash
-pipx install plane-mcp-server        # recommended
-# or
-pip install plane-mcp-server
-```
-
-(If you'd rather skip the install, swap `-- plane-mcp-server` for
-`-- uvx plane-mcp-server stdio` — `uvx` fetches on demand.)
+The npm `@makeplane/plane-mcp-server` is a different, unmaintained
+implementation (0.1.5, TypeScript, ~47 flat tools). v0.3.x is Python,
+30 action-dispatch tools, and is the one these skills target.
 
 #### Filling the three env vars
 
@@ -310,7 +306,7 @@ pip install plane-mcp-server
 |---|---|---|
 | `PLANE_API_KEY` | Personal API token — Plane → **Workspace Settings → API tokens** → create → copy | `plane_api_…` |
 | `PLANE_WORKSPACE_SLUG` | The short name in your Plane URL: `<host>/<slug>/` | `arbisoft` |
-| `PLANE_API_HOST_URL` | Base URL of your Plane instance (cloud or self-hosted) | `https://projects.arbisoft.com` |
+| `PLANE_BASE_URL` | Base URL of your Plane instance (cloud or self-hosted). Named `PLANE_API_HOST_URL` in `.env`; `setup-mcps.sh` maps it. | `https://projects.arbisoft.com` |
 
 #### What it produces
 
@@ -320,12 +316,12 @@ The command above writes this entry into `~/.claude.json` under
 ```json
 "plane": {
   "type": "stdio",
-  "command": "plane-mcp-server",
-  "args": [],
+  "command": "uvx",
+  "args": ["plane-mcp-server", "stdio"],
   "env": {
     "PLANE_API_KEY": "…",
     "PLANE_WORKSPACE_SLUG": "arbisoft",
-    "PLANE_API_HOST_URL": "https://projects.arbisoft.com"
+    "PLANE_BASE_URL": "https://projects.arbisoft.com"
   }
 }
 ```
@@ -352,9 +348,9 @@ Only available for cloud Plane accounts — self-hosted instances (like Arbisoft
 `projects.arbisoft.com`) must use the stdio path above.
 
 **Tools the commands rely on:**
-- `mcp__plane__list_project_issues`
-- `mcp__plane__list_states`
-- `mcp__plane__get_workspace_members`
+- `mcp__plane__workitem`  (`action: "list"`)
+- `mcp__plane__state`     (`action: "list"`, fallback only)
+- `mcp__plane__member`    (`action: "list_project"`)
 
 Tool namespace depends on the name you gave the server in
 `claude mcp add`. If you used something other than `plane`, the tool

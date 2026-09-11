@@ -66,9 +66,9 @@ NO_DIGEST_SENTINEL = "<<<NO-DIGEST>>>"
 # Keep set (do NOT add to DENIED_TOOLS):
 #   gmail:  search_threads, get_thread
 #   gcal:   list_events
-#   plane:  list_states, list_project_issues,
-#           get_issue_using_readable_identifier, get_workspace_members,
-#           get_projects   (get_projects is used by /plane-setup only)
+#   plane:  workitem, state, member  (v0.3.x action-dispatch tools;
+#           read-only is enforced by the PreToolUse hook, not by
+#           denying tool names — one tool serves reads and writes)
 DENIED_TOOLS = [
     # Gmail — every tool except search_threads / get_thread.
     # All writes stay denied (delivery goes through the Gmail API in
@@ -92,52 +92,38 @@ DENIED_TOOLS = [
     # Google Calendar — every tool except list_events.
     "mcp__gcal__authenticate",
     "mcp__gcal__complete_authentication",
-    # Plane — every tool except the read-only ones the fetcher +
-    # /plane-setup use. All mutations and unused reads (cycles,
-    # modules, worklogs, labels, issue types, comments, states CRUD,
-    # single-issue getters we don't call) are denied.
-    "mcp__plane__add_cycle_issues",
-    "mcp__plane__add_issue_comment",
-    "mcp__plane__add_module_issues",
-    "mcp__plane__create_cycle",
-    "mcp__plane__create_issue",
-    "mcp__plane__create_issue_type",
-    "mcp__plane__create_label",
-    "mcp__plane__create_module",
-    "mcp__plane__create_project",
-    "mcp__plane__create_state",
-    "mcp__plane__create_worklog",
-    "mcp__plane__delete_cycle",
-    "mcp__plane__delete_cycle_issue",
-    "mcp__plane__delete_issue_type",
-    "mcp__plane__delete_label",
-    "mcp__plane__delete_module",
-    "mcp__plane__delete_module_issue",
-    "mcp__plane__delete_state",
-    "mcp__plane__delete_worklog",
-    "mcp__plane__get_cycle",
-    "mcp__plane__get_issue_comments",
-    "mcp__plane__get_issue_type",
-    "mcp__plane__get_issue_worklogs",
-    "mcp__plane__get_label",
-    "mcp__plane__get_module",
-    "mcp__plane__get_state",
-    "mcp__plane__get_total_worklogs",
-    "mcp__plane__get_user",
-    "mcp__plane__list_cycle_issues",
-    "mcp__plane__list_cycles",
-    "mcp__plane__list_issue_types",
-    "mcp__plane__list_labels",
-    "mcp__plane__list_module_issues",
-    "mcp__plane__list_modules",
-    "mcp__plane__transfer_cycle_issues",
-    "mcp__plane__update_cycle",
-    "mcp__plane__update_issue",
-    "mcp__plane__update_issue_type",
-    "mcp__plane__update_label",
-    "mcp__plane__update_module",
-    "mcp__plane__update_state",
-    "mcp__plane__update_worklog",
+    # Plane — v0.3.x collapsed ~47 flat tools into 30 action-dispatch
+    # tools, so one tool now serves both reads and writes and a
+    # name-based deny would block reads too. Read-only is enforced on
+    # the `action` argument by the PreToolUse hook in
+    # .claude/settings.json (scripts/plane-readonly-guard.sh). The
+    # tools listed here are the ones the fetcher never calls, denied
+    # purely to keep their schemas out of context.
+    "mcp__plane__collection",
+    "mcp__plane__customer",
+    "mcp__plane__customer_property",
+    "mcp__plane__customer_request",
+    "mcp__plane__cycle",
+    "mcp__plane__initiative",
+    "mcp__plane__intake",
+    "mcp__plane__label",
+    "mcp__plane__milestone",
+    "mcp__plane__module",
+    "mcp__plane__page",
+    "mcp__plane__project_estimate",
+    "mcp__plane__release",
+    "mcp__plane__release_label",
+    "mcp__plane__release_tag",
+    "mcp__plane__template",
+    "mcp__plane__work_log",
+    "mcp__plane__workitem_activity",
+    "mcp__plane__workitem_attachment",
+    "mcp__plane__workitem_comment",
+    "mcp__plane__workitem_link",
+    "mcp__plane__workitem_property",
+    "mcp__plane__workitem_relation",
+    "mcp__plane__workitem_type",
+    "mcp__plane__workspace",
 ]
 
 

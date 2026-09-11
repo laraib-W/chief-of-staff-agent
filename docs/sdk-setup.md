@@ -92,9 +92,8 @@ orchestrator-owned and deterministic.
 1. **`jq` on `PATH`** — a hard dependency, not a convenience.
    `.claude/agents/plane-fetcher.md` shells out to `jq` to filter
    Plane's oversized MCP payloads on disk instead of reading them
-   into context (`list_project_issues` returns ~250KB for a
-   500-issue project; `get_workspace_members` ~270KB for a
-   1,000-person workspace). Install with `brew install jq` /
+   into context (a 492-issue project returns ~205KB even with
+   `fields` narrowing, and the member list ~15KB). Install with `brew install jq` /
    `apt install jq`. Without it, member resolution fails and the
    digest prints raw UUIDs instead of names.
 2. **Anthropic API key** — set `ANTHROPIC_API_KEY` in `.env`.

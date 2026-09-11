@@ -166,9 +166,13 @@ a chat or an issue.
 
 ## Step 6 — Install the Plane MCP binary
 
-```bash
-pipx install plane-mcp-server
-```
+Nothing to install — `uvx` fetches `plane-mcp-server` (v0.3.x, PyPI)
+on demand at first use. Confirm `uvx --version` works; it ships with
+`uv` from step 1.
+
+> Do **not** install the npm `@makeplane/plane-mcp-server` — that is an
+> unmaintained 0.1.5 TypeScript build with a different, flat tool
+> surface.
 
 ## Step 7 — Register and authenticate the three MCP servers
 

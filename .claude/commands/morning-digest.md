@@ -93,7 +93,7 @@ digest.
   must supply:
   - `project_id` (uuid) and `project_identifier` (short prefix, e.g.
     `ARBISOFTOPEN`) from `goals.local.yaml` — the fetcher will not
-    call `mcp__plane__get_projects` on its own.
+    call the `project` tool on its own (it 404s on self-hosted CE).
   - `inactivity_days` from `goals.yaml → thresholds.inactivity_days`
     so the subagent can compute `is_stuck` and
     `age_in_state_days` per issue.
@@ -103,7 +103,7 @@ digest.
   Prompt shape: "Fetch active-bucket issues for project_id=<uuid>,
   project_identifier=<prefix>, inactivity_days=<N>[, ignore_list=[...]]
   and return the structured JSON per your contract." Returns
-  `{states, issues, members, hydration_failures, error}`. Each
+  `{states, issues, members, error}`. Each
   issue carries `bucket` (via its `state_id` → `states[].bucket`
   lookup), `age_in_state_days`, and `is_stuck` — the subagent has
   already applied the v0.1.5 hydration workaround, so no extra

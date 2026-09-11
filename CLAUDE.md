@@ -72,7 +72,7 @@ commands. The commands assume these three servers are connected:
 |----------|----------------------------------------|-------------------------------------------------|
 | gmail    | Read the last 24h (thread-based)       | `search_threads`, `get_thread`                  |
 | gcal     | Today's events + 7-day look-ahead      | `list_events`, `get_event`                      |
-| plane    | Issues, states, assignees per project  | `list_project_issues`, `list_states`, `get_workspace_members` |
+| plane    | Work items, states, members per project | `workitem`, `state`, `member` (action-dispatch; `action: "list"`) |
 
 Gmail is Google's official MCP at `https://gmailmcp.googleapis.com/mcp/v1`
 — thread-based, no send capability. Delivery is not an MCP tool call:

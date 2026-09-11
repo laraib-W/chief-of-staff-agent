@@ -14,7 +14,7 @@
 #     - Web-application OAuth client with http://localhost:8765/callback
 #       registered as an authorized redirect URI
 #   Plane:
-#     - `plane-mcp-server` binary on PATH (pipx install plane-mcp-server)
+#     - `uvx` on PATH (from uv); it fetches plane-mcp-server on demand
 
 set -euo pipefail
 
@@ -97,9 +97,9 @@ if selected plane; then
   : "${PLANE_WORKSPACE_SLUG:?missing PLANE_WORKSPACE_SLUG in .env}"
   : "${PLANE_API_HOST_URL:?missing PLANE_API_HOST_URL in .env}"
 
-  if ! command -v plane-mcp-server >/dev/null 2>&1; then
-    echo "warning: plane-mcp-server not on PATH — first plane tool call will fail." >&2
-    echo "         install with: pipx install plane-mcp-server" >&2
+  if ! command -v uvx >/dev/null 2>&1; then
+    echo "warning: uvx not on PATH — first plane tool call will fail." >&2
+    echo "         install uv: https://docs.astral.sh/uv/getting-started/" >&2
   fi
 fi
 
@@ -129,12 +129,16 @@ register_google() {
 }
 
 register_plane() {
+  # v0.3.x is the maintained server: Python on PyPI, fetched on demand by
+  # uvx. The old npm @makeplane/plane-mcp-server (0.1.5, TypeScript) is
+  # unmaintained and lacks `fields`, pagination, and per-project members.
+  # Note the env var rename: PLANE_API_HOST_URL -> PLANE_BASE_URL.
   claude mcp remove --scope user plane >/dev/null 2>&1 || true
   claude mcp add --scope user plane \
     --env PLANE_API_KEY="$PLANE_API_KEY" \
     --env PLANE_WORKSPACE_SLUG="$PLANE_WORKSPACE_SLUG" \
-    --env PLANE_API_HOST_URL="$PLANE_API_HOST_URL" \
-    -- plane-mcp-server
+    --env PLANE_BASE_URL="$PLANE_API_HOST_URL" \
+    -- uvx plane-mcp-server stdio
 }
 
 if selected gmail; then

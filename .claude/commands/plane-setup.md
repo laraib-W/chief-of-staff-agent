@@ -15,13 +15,18 @@ Replaces hand-editing UUIDs into `goals.yaml`.
 
 ### Step 1: List projects
 
-Call `mcp__plane__get_projects`. Collect each project's `id`, `identifier`,
-and `name`. Sort alphabetically by name.
+Run `./scripts/plane-projects.sh`. It returns
+`[{id, identifier, name}, ...]` sorted by name.
+
+> Not an MCP call: plane-mcp-server v0.3.x's `project(action="list")`
+> hits a Cloud-only endpoint that 404s on self-hosted Plane Community
+> Edition (makeplane/plane-mcp-server#171, #188). The script reads the
+> documented v1 REST endpoint directly. Read-only GET.
 
 `identifier` is the short prefix Plane uses in readable issue IDs (e.g.
 `ARBISOFTOPEN` for `ARBISOFTOPEN-502`). It's needed later by
 `/plane-standup` and `/morning-digest` for issue hydration. Capture it
-here so those commands don't have to call `get_projects` again.
+here so those commands never need the project list again.
 
 ### Step 2: Present the menu
 
@@ -78,7 +83,7 @@ Run /plane-standup or /morning-digest to use them.
 ```
 
 ## Guardrails
-- Read-only against Plane — only `get_projects` is called.
+- Read-only against Plane — one GET against the projects endpoint.
 - Never write to `goals.yaml` (committed) — only `goals.local.yaml`
   (gitignored).
 - Never call any Plane write tool (`create_*`, `update_*`, `delete_*`,

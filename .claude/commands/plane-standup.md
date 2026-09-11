@@ -46,7 +46,7 @@ to confirm the timezone from `goals.yaml → identity.timezone`.
 
 If any project entry is missing `identifier`, tell the user to
 re-run `/plane-setup` (older setups didn't capture it) and stop. Do
-NOT call `mcp__plane__get_projects` as a fallback.
+NOT call the `project` tool as a fallback (it 404s on self-hosted CE).
 
 Also fix this value inline (mirror `app/config`; not yet in
 `goals.yaml`):
@@ -80,7 +80,7 @@ the authoritative contract):
 
 ```
 {
-  project_id, project_identifier, total_issues, hydration_failures,
+  project_id, project_identifier, total_issues,
   states: [{id, name, bucket}],
   issues: [{issue_id, readable_id, name, state_id, assignee_ids,
             updated_at, state_updated_at, age_in_state_days, is_stuck,
@@ -136,11 +136,6 @@ If any project returned an error, prepend a banner:
 > WARNING: plane-fetcher failed for N project(s): <name>: <error>...
 > Standup shipping the projects that succeeded.
 
-If any project's `hydration_failures > 0`, add a second banner:
-
-> WARNING: Plane hydration failed for N issue(s) across M project(s) —
-> those fall under (unassigned). Standup shipping anyway.
-
 Then for each project, print:
 
 ```
@@ -183,9 +178,8 @@ End the whole report with a totals line across projects:
   considers one, stop and explain why. (The subagent is also
   read-only; see `.claude/agents/plane-fetcher.md`.)
 - **Delegate context-heavy work.** Never call
-  `mcp__plane__list_project_issues`, `mcp__plane__list_states`,
-  `mcp__plane__get_workspace_members`, or
-  `mcp__plane__get_issue_using_readable_identifier` directly from
+  `mcp__plane__workitem`, `mcp__plane__state`, or
+  `mcp__plane__member` directly from
   this skill. The subagent already handles them; duplicating those
   calls in main context defeats the purpose of the fan-out.
 - If Plane MCP fails mid-run for one project, ship the standup with
