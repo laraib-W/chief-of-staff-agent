@@ -116,7 +116,7 @@ orchestrator-owned and deterministic.
 8. **Permission rules** — nothing to do; they ship in
    `.claude/settings.json`, which is committed precisely so a fresh
    clone works. It allows the read-only MCP tools plus the `jq` /
-   `mv` / cache-write calls `plane-fetcher` needs, and denies every
+   calls `plane-fetcher` needs, and denies every
    Gmail, Calendar, and Plane mutation. `.claude/settings.local.json`
    stays gitignored for per-machine overrides. If you add a rule
    everyone needs, put it in `settings.json`.
@@ -177,16 +177,20 @@ orchestrator-owned and deterministic.
 - **`No Google refresh token in keyring`** — you skipped
   `python -m app_sdk.auth --setup`. Run it once; the flow opens a
   browser for consent.
-- **Plane fetch is slow and burns tokens, or the digest shows raw
-  UUIDs instead of names** — `plane-fetcher`'s `jq` calls are being
-  denied or `jq` is missing. Confirm `jq --version` works, then
-  confirm `.claude/settings.json` is present and allows `Bash(jq *)`
-  and `Bash(mv .cache/*)`. Step 2 degrades quietly here — it falls
-  back to reading the whole 250KB payload through context, so the run
-  still succeeds, just expensively. Step 4 has no fallback, which is
-  why names turn into UUIDs. Note that file rules must be written as
-  `Edit(path)`; a `Write(path)` rule is never matched by file
-  permission checks.
+- **Plane fetch is slow and burns tokens** — `plane-fetcher`'s `jq`
+  calls are being denied, or `jq` is missing. Confirm `jq --version`
+  works, then confirm `.claude/settings.json` is present and allows
+  `Bash(jq *)`. This degrades quietly: the fetcher falls back to
+  reading the whole ~205KB payload through context, so the run still
+  succeeds, just expensively.
+- **A Plane call was blocked with "is not a read action"** — correct
+  behavior. `scripts/plane-readonly-guard.sh` is a `PreToolUse` hook
+  that default-denies any Plane `action` outside the read allowlist,
+  because v0.3.x serves reads and writes through one tool per resource
+  and a name-based deny rule cannot separate them.
+- **A Plane call was blocked for passing `pql`** — also correct. See
+  "Why filtering is done client-side" in
+  [`mcp-servers.md`](mcp-servers.md).
 - **Agent tried to call a Gmail write tool (`create_draft`,
   `label_*`, `unlabel_*`, `create_label`) and was denied** — correct
   behavior. Google's official Gmail MCP does not offer a `send_email`

@@ -16,8 +16,6 @@
       "Bash(jq *)",
       "Bash(date *)",
       "Bash(uv run *)",
-      "Bash(mv .cache/*)",
-      "Edit(.cache/plane_members.json)",
       "Bash(./scripts/plane-projects.sh)"
     ],
     "deny": [

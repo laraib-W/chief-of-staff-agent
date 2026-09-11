@@ -327,10 +327,17 @@ script refuses to run there.
 ## Permissions — nothing to do
 
 Permission rules ship in `.claude/settings.json`, committed so a fresh
-clone works: read-only MCP tools plus the `jq` / `mv` / cache-write
-calls `plane-fetcher` needs are allowed, and every Gmail, Calendar,
-and Plane mutation is denied. `.claude/settings.local.json` stays
+clone works: the read-only MCP tools plus the `jq` calls
+`plane-fetcher` needs are allowed, and every Gmail and Calendar
+mutation is denied by name. `.claude/settings.local.json` stays
 gitignored for per-machine overrides.
+
+Plane is different. Its v0.3.x tools are action-dispatch — one tool per
+resource, so `workitem` serves `list` *and* `delete` — and a deny rule
+on the tool name would block reads too. Read-only is enforced instead
+by a `PreToolUse` hook, `scripts/plane-readonly-guard.sh`, which
+default-denies any `action` outside a read allowlist and also blocks
+`pql`.
 
 Adding a rule everyone needs? Put it in `settings.json`. File rules
 must be written `Edit(path)` — a `Write(path)` rule is silently never

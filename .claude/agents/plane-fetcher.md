@@ -1,7 +1,7 @@
 ---
 name: plane-fetcher
 description: Fetch active-bucket work items (with age-in-state and is_stuck) and project members for a single Plane project. Returns structured evidence — issue_id, readable_id, state bucket, assignee_ids, updated_at, age_in_state_days, is_stuck — so the parent can build team-health cards without pulling raw issue bodies into its context. Classifies state NAMES into pipeline/active/terminal buckets (Plane's built-in state.group is unreliable in custom workspaces). Targets plane-mcp-server v0.3.x, whose action-dispatch tools return assignees inline, so no per-issue hydration is needed.
-tools: mcp__plane__workitem, mcp__plane__state, mcp__plane__member, Bash, Read, Write
+tools: mcp__plane__workitem, mcp__plane__state, mcp__plane__member, Bash, Read
 model: sonnet
 ---
 
@@ -146,66 +146,30 @@ Rules of thumb:
 `expand` ever returns a null `state.name`. Under normal operation you
 do not need it.
 
-### 3. Resolve member names — cache-first
+### 3. Resolve member names
 
 Call `mcp__plane__member` with `action: "list_project"` and the
-`project_id`. This returns the project's members (~58 people, ~15KB for
-a real project), not the whole workspace.
+`project_id`. That returns this project's members — ~58 people, ~15KB
+for a real project — as a plain JSON array. Build a `{uuid:
+display_name}` map from it directly; the response is small enough to
+read, and it is scoped to the project you are already fetching.
 
-> Do **not** call `action: "list_workspace"` — it 404s on self-hosted
+> Do **not** call `action: "list_workspace"`. It 404s on self-hosted
 > Plane CE, and it would return the entire workspace roster (~1,000
 > people, ~271KB) to resolve a dozen names.
 
-Cache path: `.cache/plane_members.json` (gitignored), shape
-`{"fetched_at": "ISO-8601", "members": {"<uuid>": "<display_name>"}}`.
-It is shared across the parallel fan-out, so a project you have not
-fetched may already have contributed names.
-
-Collect `assignee_uuid_union` — every `assignee_ids` value across the
-kept stubs. Then:
-
-**3a. Probe the cache.** Set `WANT` to that union as a JSON array. One
-call answers fresh / complete / names, in a few hundred bytes:
-
-```bash
-HORIZON=$(date -u -v-7d +%Y-%m-%dT%H:%M:%SZ)
-jq -c --argjson want "$WANT" --arg horizon "$HORIZON" '
-  . as $root
-  | {fresh: ((.fetched_at // "") >= $horizon),
-     missing: [ $want[] | select($root.members[.] == null) ],
-     members: [ $want[] | select($root.members[.] != null)
-                | {id: ., display_name: $root.members[.]} ]}
-' .cache/plane_members.json
-```
-
-Missing file → `jq` errors; treat as `{fresh:false, missing:WANT}`.
-
-**3b. Fetch only if `fresh` is false or `missing` is non-empty.** Merge
-the new members over the existing cache, never clobbering names other
-projects contributed:
-
-```bash
-jq -s --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
-  def nm:
-    (.display_name // "") as $d
-    | (((.first_name // "") + " " + (.last_name // "")) | gsub("^ +| +$";"")) as $f
-    | if $d != "" then $d elif $f != "" then $f elif (.email // "") != "" then .email else .id end;
-  (.[0].members // {}) as $old
-  | (if (.[1]|type)=="array" then .[1] else (.[1].results // []) end) as $new
-  | {fetched_at: $now,
-     members: ($old + ($new | map({key: .id, value: nm}) | from_entries))}
-' .cache/plane_members.json "$MEMBERS_OVERFLOW_PATH" > .cache/plane_members.json.tmp.$$ \
-  && mv .cache/plane_members.json.tmp.$$ .cache/plane_members.json
-```
-
-If the cache file does not exist, substitute `<(echo '{}')` for it.
-Write via `.tmp.$$` + `mv` so the replace is atomic — siblings read
-this file concurrently and a truncated write corrupts it for all of
-them. Then re-run the 3a probe to pick up names.
-
-`nm` tests for empty strings rather than using `//`: jq's `//` only
-catches `null`/`false`, and Plane returns `""` for absent names, so a
+Name fallback order, per member row: `display_name` →
+`first_name last_name` → `email` → the uuid. Test for **empty
+strings**, not just null — Plane returns `""` for absent names, so a
 blank `display_name` would otherwise win and print an empty person.
+
+Keep only the UUIDs that appear in `assignee_uuid_union` — the union of
+`assignee_ids` across the kept stubs — and return those in `members`.
+
+There is no cache. There used to be one, because the old server's
+workspace-wide member fetch was 271KB and all-or-nothing; a per-project
+list at 15KB does not earn the freshness checks, the merge, and the
+atomic write it took to maintain.
 
 ### 4. Derive per-issue signals
 
@@ -281,11 +245,11 @@ On failure, return the same shape with empty lists and a populated
 - Every `issue_id` and `readable_id` must be verbatim from the tool
   result, or built deterministically from `project_identifier` +
   `sequence_id`, so the parent can cite it.
-- The only file you may write is `.cache/plane_members.json`.
-- **`Bash` is for filtering JSON on disk — nothing else.** Run `jq`
-  and read-only helpers (`wc`, `head`, `date`) against MCP overflow
-  files and `.cache/`. Never reach Plane from the shell: no `curl`,
-  `wget`, or `httpie`. CLAUDE.md §1.1 covers the shell too — a
-  mutation is a mutation whether it arrives over MCP or over HTTP.
-  Never `rm` or redirect outside `.cache/`; the only `mv` permitted is
-  the `.tmp.$$` atomic replace in step 3b.
+- **Write nothing to disk.** You have no `Write` tool and no cache to
+  maintain. Everything you produce goes back in the JSON block.
+- **`Bash` is for filtering JSON on disk — nothing else.** Run `jq` and
+  read-only helpers (`wc`, `head`, `date`) against MCP overflow files.
+  Never reach Plane from the shell: no `curl`, `wget`, or `httpie`.
+  CLAUDE.md §1.1 covers the shell too — a mutation is a mutation
+  whether it arrives over MCP or over HTTP. Never `rm`, `mv`, or
+  redirect output anywhere.
